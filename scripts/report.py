@@ -114,7 +114,25 @@ def load_data(conn, province, district):
     market = conn.execute(
         "SELECT date, brent, usdthb FROM market ORDER BY date ASC"
     ).fetchall()
-    return timeline, events, market
+
+    news_cutoff = (datetime.now(TZ) - timedelta(days=4)).isoformat(timespec="minutes")
+    news_rows = conn.execute(
+        """
+        SELECT title, source, url, published_at FROM news
+        WHERE published_at >= ? ORDER BY published_at DESC LIMIT 6
+        """,
+        (news_cutoff,),
+    ).fetchall()
+    news = [
+        {
+            "title": title,
+            "source": source,
+            "url": url,
+            "published": datetime.fromisoformat(published_at),
+        }
+        for title, source, url, published_at in news_rows
+    ]
+    return timeline, events, market, news
 
 
 def market_summary(market):
@@ -167,7 +185,7 @@ def build_context(conn, config):
     today = now.date()
     tomorrow = today + timedelta(days=1)
 
-    timeline, events, market = load_data(conn, province, district)
+    timeline, events, market, news = load_data(conn, province, district)
     if not timeline:
         raise SystemExit("ยังไม่มีข้อมูลในฐานข้อมูล — รัน scripts/fetch.py ก่อน")
 
@@ -248,6 +266,37 @@ def build_context(conn, config):
     brent, fx = market_summary(market)
     pressure_class, pressure_label = pressure_text(brent, fx)
 
+    tomorrow_tag = f"{tomorrow.day} {THAI_MONTHS_SHORT[tomorrow.month - 1]}"
+    credible_hints = (
+        "thairath", "bangkokbiznews", "prachachat", "kaohoon", "infoquest",
+        "posttoday", "thansettakij", "matichon", "krungthep", "manager",
+        "baseeconomic", "efinance", "pptv", "nation", "tnn", "springnews",
+        "amarintv", "ch7", "ch3", "workpoint", "sanook", "moneyandbanking",
+    )
+    for item in news:
+        item["for_tomorrow"] = tomorrow_tag in item["title"]
+        source_key = (item["source"] or "").lower()
+        item["credible"] = any(hint in source_key for hint in credible_hints)
+        item["score"] = (
+            (4 if "พรุ่งนี้" in item["title"] else 0)
+            + (2 if item["for_tomorrow"] else 0)
+            + (2 if item["credible"] else 0)
+            + (1 if "ราคาน้ำมัน" in item["title"] else 0)
+        )
+
+    relevant_keywords = (
+        "พรุ่งนี้", "วันนี้", "ดีเซล", "แก๊สโซฮอล์", "ปรับขึ้น", "ปรับลง", "สตางค์",
+    )
+    relevant = [
+        item
+        for item in news
+        if "ราคาน้ำมัน" in item["title"]
+        and any(keyword in item["title"] for keyword in relevant_keywords)
+    ]
+    news = relevant or news
+    news.sort(key=lambda x: (x["score"], x["published"]), reverse=True)
+    news = news[:5]
+
     return {
         "config": config,
         "province": province,
@@ -272,6 +321,7 @@ def build_context(conn, config):
         "fx": fx,
         "pressure_class": pressure_class,
         "pressure_label": pressure_label,
+        "news": news,
     }
 
 
@@ -321,6 +371,20 @@ def render_markdown(ctx):
             "(ปกติประกาศช่วง 16:00–18:00 น. มีผล 05:00 น. ของวันถัดไป)"
         )
     add("")
+
+    if ctx["news"]:
+        add("## ข่าวประกาศล่าสุดจากสำนักข่าว")
+        add("")
+        add("*เป็นข่าวประชาสัมพันธ์ล่วงหน้า ยังไม่ใช่ข้อมูลยืนยันจากระบบ ปตท.OR*")
+        add("")
+        for item in ctx["news"][:5]:
+            flag = " 🔔" if item["for_tomorrow"] else ""
+            source = f" — {item['source']}" if item["source"] else ""
+            add(
+                f"- **{thai_date(item['published'], short=True)} {item['published']:%H:%M}**{flag} "
+                f"[{item['title']}]({item['url']}){source}"
+            )
+        add("")
 
     if ctx["today_events"]:
         add(f"## ปรับราคาวันนี้ ({thai_date(ctx['today'])})")
@@ -470,6 +534,14 @@ table.list td:last-child,table.list th:last-child{text-align:right}
 footer{margin-top:26px;color:var(--muted);font-size:.78rem;line-height:1.7}
 footer a{color:#7dd3fc;text-decoration:none}
 .note{color:var(--muted);font-size:.78rem;margin-top:8px}
+.news{list-style:none;margin:0;padding:0}
+.news li{padding:9px 0;border-bottom:1px solid rgba(255,255,255,.05);font-size:.88rem;line-height:1.45}
+.news li:last-child{border-bottom:none}
+.news a{color:var(--text);text-decoration:none}
+.news a:hover{color:#7dd3fc}
+.news .meta{color:var(--muted);font-size:.74rem;margin-top:3px}
+.news .tag{display:inline-block;background:rgba(250,204,21,.16);color:#fde68a;border-radius:999px;
+  padding:1px 8px;font-size:.7rem;margin-left:6px;vertical-align:1px}
 """
 
 
@@ -636,6 +708,24 @@ def render_banner(ctx):
     )
 
 
+def render_news(ctx):
+    if not ctx["news"]:
+        return '<p class="note">ยังไม่มีข่าวประกาศล่วงหน้าในช่วง 4 วันที่ผ่านมา</p>'
+    items = []
+    for item in ctx["news"][:5]:
+        tag = '<span class="tag">ประกาศพรุ่งนี้</span>' if item["for_tomorrow"] else ""
+        source = html.escape(item["source"] or "")
+        meta = f"{thai_date(item['published'], short=True)} {item['published']:%H:%M}"
+        if source:
+            meta += f" · {source}"
+        items.append(
+            f'<li><a href="{html.escape(item["url"])}" target="_blank" rel="noopener">'
+            f'{html.escape(item["title"])}</a>{tag}'
+            f'<div class="meta">{meta}</div></li>'
+        )
+    return '<ul class="news">' + "".join(items) + "</ul>"
+
+
 def render_html(ctx):
     brent, fx = ctx["brent"], ctx["fx"]
     market_boxes = []
@@ -695,6 +785,12 @@ def render_html(ctx):
   <h3>ปัจจัยตลาดโลก</h3>
   <div class="mkt">{''.join(market_boxes)}</div>
 </div>
+<div class="panel" style="margin-bottom:22px">
+  <h3>ข่าวประกาศราคาล่วงหน้า</h3>
+  {render_news(ctx)}
+  <p class="note">รวบรวมจาก Google News (สำนักข่าวไทย) · ยังไม่ใช่ข้อมูลยืนยันจาก ปตท.OR
+    — ใช้ประกอบการตัดสินใจ ราคาจริงดูจากระบบ ปตท.OR อีกครั้ง</p>
+</div>
 <div class="panel">
   <h3>เปลี่ยนแปลงล่าสุด</h3>
   <table class="list">
@@ -749,6 +845,18 @@ def send_telegram(ctx, config, local):
         lines.append(html.escape(" · ".join(parts)))
     else:
         lines.append(f"🔔 พรุ่งนี้ ({thai_date(ctx['tomorrow'], short=True)}): ยังไม่ประกาศ")
+
+    if ctx["news"]:
+        top = ctx["news"][0]
+        headline = top["title"]
+        if len(headline) > 120:
+            headline = headline[:117] + "..."
+        lines.append("")
+        lines.append(f"📰 {html.escape(headline)}")
+        meta = f"{thai_date(top['published'], short=True)} {top['published']:%H:%M}"
+        if top["source"]:
+            meta += f" · {top['source']}"
+        lines.append(f"<i>{html.escape(meta)}</i>")
 
     month_dates = sorted(
         {

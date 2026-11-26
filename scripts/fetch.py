@@ -19,7 +19,9 @@ import sys
 import time
 import urllib.parse
 import urllib.request
+import xml.etree.ElementTree as ET
 from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -32,6 +34,13 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ThaiFuelPriceTracker/1.0 (person
 OR_ENDPOINT = "https://www.pttor.com/wp-admin/admin-ajax.php"
 BRENT_URL = "https://query1.finance.yahoo.com/v8/finance/chart/BZ=F?range=1mo&interval=1d"
 FX_URL = "https://api.frankfurter.app/{start}..?from=USD&to=THB"
+
+# ข่าวประกาศราคาล่วงหน้า (Google News รวมสำนักข่าวไทย) — ใช้เป็น "ประกาศล่วงหน้า"
+NEWS_QUERIES = [
+    "ราคาน้ำมันพรุ่งนี้",
+    "ราคาน้ำมัน ปรับขึ้น",
+]
+NEWS_URL = "https://news.google.com/rss/search?q={q}&hl=th&gl=TH&ceid=TH:th"
 
 # ชื่อผลิตภัณฑ์ที่ OR ส่งมา -> ชื่อที่ใช้แสดงในรายงาน
 PRODUCT_LABELS = {
@@ -116,6 +125,18 @@ def connect():
             detail     TEXT,
             rows       INTEGER,
             fetched_at TEXT NOT NULL
+        )
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS news (
+            url          TEXT PRIMARY KEY,
+            title        TEXT NOT NULL,
+            source       TEXT,
+            published_at TEXT,
+            query        TEXT,
+            fetched_at   TEXT NOT NULL
         )
         """
     )
@@ -251,11 +272,86 @@ def save_market(conn, now_iso):
     return len(brent_rows), len(fx_rows)
 
 
+# ---------------------------------------------------------------- news
+def fetch_news_items():
+    """คืนรายการข่าวล่าสุดจาก Google News (RSS) — ประกาศราคาล่วงหน้าของสำนักข่าวไทย"""
+    cutoff = datetime.now(TZ) - timedelta(days=5)
+    found = {}
+    for query in NEWS_QUERIES:
+        url = NEWS_URL.format(q=urllib.parse.quote(query))
+        try:
+            xml_text = http_request(url)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ! ข่าว '{query}': {exc}", file=sys.stderr)
+            continue
+        try:
+            root = ET.fromstring(xml_text)
+        except ET.ParseError as exc:
+            print(f"  ! ข่าว '{query}' แกะ XML ไม่ได้: {exc}", file=sys.stderr)
+            continue
+
+        for item in root.iter("item"):
+            title = (item.findtext("title") or "").strip()
+            link = (item.findtext("link") or "").strip()
+            raw_date = (item.findtext("pubDate") or "").strip()
+            if not title or not link:
+                continue
+            try:
+                published = parsedate_to_datetime(raw_date).astimezone(TZ)
+            except (TypeError, ValueError):
+                continue
+            if published < cutoff:
+                continue
+            source = ""
+            if " - " in title:
+                title, source = title.rsplit(" - ", 1)
+            key = title.strip().lower()
+            existing = found.get(key)
+            if existing is None or published > existing["published"]:
+                found[key] = {
+                    "title": title.strip(),
+                    "url": link,
+                    "source": source.strip(),
+                    "published": published,
+                    "query": query,
+                }
+        time.sleep(0.4)
+
+    items = sorted(found.values(), key=lambda x: x["published"], reverse=True)
+    return items[:25]
+
+
+def save_news(conn, now_iso):
+    items = fetch_news_items()
+    for item in items:
+        conn.execute(
+            """
+            INSERT INTO news (url, title, source, published_at, query, fetched_at)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(url) DO UPDATE SET
+                title = excluded.title,
+                source = excluded.source,
+                published_at = excluded.published_at,
+                fetched_at = excluded.fetched_at
+            """,
+            (
+                item["url"],
+                item["title"],
+                item["source"],
+                item["published"].isoformat(timespec="minutes"),
+                item["query"],
+                now_iso,
+            ),
+        )
+    return len(items)
+
+
 # ---------------------------------------------------------------- main
 def main():
     parser = argparse.ArgumentParser(description="ดึงราคาน้ำมันรายวัน (ปตท.OR)")
     parser.add_argument("--full", action="store_true", help="ดึงย้อนหลังทุกเดือนของปีนี้")
     parser.add_argument("--skip-market", action="store_true", help="ข้ามข้อมูลตลาดโลก")
+    parser.add_argument("--skip-news", action="store_true", help="ข้ามข่าวประกาศล่วงหน้า")
     args = parser.parse_args()
 
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -286,6 +382,14 @@ def main():
             log_fetch(conn, "market", "Brent + USD/THB", brent_n + fx_n)
         except Exception as exc:  # noqa: BLE001
             print(f"  ! ตลาดโลก: {exc}", file=sys.stderr)
+
+    if not args.skip_news:
+        try:
+            news_n = save_news(conn, now_iso)
+            print(f"  - ข่าวประกาศล่วงหน้า: {news_n} ข่าว")
+            log_fetch(conn, "google_news", "ราคาน้ำมันพรุ่งนี้", news_n)
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ! ข่าว: {exc}", file=sys.stderr)
 
     conn.commit()
     latest = conn.execute(

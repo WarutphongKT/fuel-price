@@ -1,0 +1,26 @@
+{
+  "province": "อำนาจเจริญ",
+  "district": "เมืองอำนาจเจริญ",
+  "reference_product": "ดีเซล B7",
+  "display_products": [
+    "ดีเซล B7",
+    "ดีเซล B20",
+    "แก๊สโซฮอล์ 95",
+    "แก๊สโซฮอล์ 91",
+    "แก๊สโซฮอล์ E20",
+    "แก๊สโซฮอล์ E85",
+    "เบนซิน 95",
+    "SP GSH95",
+    "SP Diesel",
+    "SP X99"
+  ],
+  "telegram": {
+    "enabled": true
+  },
+  "sources": {
+    "retail": "https://www.pttor.com/th/oil_price",
+    "retail_api": "https://www.pttor.com/wp-admin/admin-ajax.php?action=fetch_regional_oil_prices",
+    "brent": "https://finance.yahoo.com/quote/BZ=F",
+    "fx": "https://api.frankfurter.app/"
+  }
+}

@@ -37,6 +37,7 @@ scripts/common.py        ตัวจัดรูปแบบวันที่/
 scripts/serve.py         เปิด dashboard ให้มือถือดูในวง LAN
 scripts/telegram_setup.py  ตั้งค่า Telegram อัตโนมัติ
 run.bat                  รันทั้งชุด (ใช้โดย Task Scheduler)
+publish.bat              push dashboard.html + reports ขึ้น git (เช่น GitHub Pages)
 setup_schedule.ps1       ตั้ง/ลบ/ตรวจงานเวลา 06:00 และ 17:30
 ```
 
@@ -63,6 +64,58 @@ powershell -ExecutionPolicy Bypass -File .\setup_schedule.ps1 -Remove
 3. `python scripts\telegram_setup.py --token "123456:AA..."`
 
 ระบบจะส่งสรุปให้ทุกวัน 06:00 (ราคาที่ใช้จริงวันนี้) และ 17:30 (ประกาศของพรุ่งนี้)
+
+## ให้ผู้อื่นดู (เลือกตามสถานการณ์)
+
+### 1) ในบ้าน / วง Wi-Fi เดียวกัน — ง่ายสุด ไม่ต้องสมัครอะไร
+
+```powershell
+python scripts\serve.py            # พอร์ต 8765
+```
+
+เปิดให้คนอื่นที่ต่อ Wi-Fi เดียวกัน (ไม่ใช่ 4G) ที่ `http://<IP-เครื่องนี้>:8765/`
+IP ดูได้จากข้อความที่สคริปต์พิมพ์ออกมา หรือ `ipconfig`
+
+- ครั้งแรก Windows จะถาม firewall → ติ๊ก **Private networks** แล้ว Allow
+- เครื่องนี้ต้องเปิดอยู่ และต้องไม่หลับ (ตั้ง Power & sleep = Never)
+- ข้อดี: ข้อมูลสดทุกครั้งที่รีเฟรช · ข้อเสีย: ใช้ได้เฉพาะในบ้าน
+
+### 2) ส่งไฟล์เดียว — เร็วสุด ใช้ได้ทุกที่
+
+แนบ `dashboard.html` ทาง LINE/อีเมล ผู้รับเปิดในเบราว์เซอร์มือถือได้เลย
+เพราะ CSS และข้อมูลฝังอยู่ในไฟล์เดียว (ฟอนต์โหลดจาก Google Fonts ถ้าออฟไลน์จะใช้ฟอนต์ในเครื่องแทน)
+
+- ข้อดี: ไม่ต้องมีเซิร์ฟเวอร์ · ข้อเสีย: เป็นภาพนิ่ง ณ ตอนที่สร้าง ต้องส่งไฟล์ใหม่ทุกครั้ง
+
+### 3) เว็บสาธารณะฟรี (GitHub Pages) + อัปเดตเองทุกวัน
+
+ทำครั้งเดียว:
+
+1. สร้าง repository แบบ public (เช่น `fuel-price`) แล้ว push โค้ดขึ้นไป
+2. ไปที่ **Settings → Pages → Deploy from a branch → main / (root)**
+3. เปิด `https://<ชื่อผู้ใช้>.github.io/fuel-price/dashboard.html`
+
+ให้อัปเดตอัตโนมัติทุกครั้งที่รันรอบ 06:00/17:30 — เพิ่มบรรทัดนี้ท้าย `run.bat` (ก่อน `endlocal`):
+
+```bat
+call publish.bat
+```
+
+`publish.bat` commit เฉพาะ `dashboard.html` + `reports/` แล้ว push
+(ถ้ายังไม่มี remote/upstream จะข้ามเอง ไม่ทำให้ scheduled task ล้ม)
+
+- ข้อดี: ใครมีลิงก์ก็เปิดได้ ไม่ต้องเปิดคอม · ข้อเสีย: หน้าเว็บเป็นข้อมูลรอบล่าสุดที่ push ขึ้นไป
+- ข้อควรรู้: หน้าเว็บแสดงชื่ออำเภอ/จังหวัด ถ้าไม่อยากให้คนนอกรู้ ให้แก้ `config.json` เป็นระดับจังหวัด
+
+### 4) ให้คนนอกดูชั่วคราว โดยไม่ต้องมี GitHub
+
+```powershell
+winget install --id Cloudflare.cloudflared
+python scripts\serve.py
+cloudflared tunnel --url http://localhost:8765
+```
+
+จะได้ URL แบบ `https://xxx.trycloudflare.com` ใช้ได้จนกว่าจะปิดหน้าต่าง — เหมาะกับ "ส่งให้เพื่อนดูเดี๋ยวนี้"
 
 ## แดชบอร์ด
 

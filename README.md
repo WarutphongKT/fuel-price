@@ -37,9 +37,11 @@ scripts/common.py        ตัวจัดรูปแบบวันที่/
 scripts/serve.py         เปิด dashboard ให้มือถือดูในวง LAN
 scripts/telegram_setup.py  ตั้งค่า Telegram อัตโนมัติ
 run.bat                  รันทั้งชุด (ใช้โดย Task Scheduler)
-publish.bat              push dashboard.html + reports ขึ้น git (เช่น GitHub Pages)
+publish.bat              push dashboard.html + index.html + reports ขึ้น git
 setup_schedule.ps1       ตั้ง/ลบ/ตรวจงานเวลา 06:00 และ 17:30
 ```
+
+ไฟล์ที่ generate: `dashboard.html`, `index.html` (สำเนาสำหรับ static hosting), `reports/*.md`
 
 ## ใช้งาน
 
@@ -93,7 +95,9 @@ IP ดูได้จากข้อความที่สคริปต์�
 
 1. สร้าง repository แบบ public (เช่น `fuel-price`) แล้ว push โค้ดขึ้นไป
 2. ไปที่ **Settings → Pages → Deploy from a branch → main / (root)**
-3. เปิด `https://<ชื่อผู้ใช้>.github.io/fuel-price/dashboard.html`
+3. เปิด `https://<ชื่อผู้ใช้>.github.io/fuel-price/`
+
+`report.py` เขียนทั้ง `dashboard.html` และ `index.html` (เนื้อหาเดียวกัน) เพื่อให้ URL รากเปิดได้เลย
 
 ให้อัปเดตอัตโนมัติทุกครั้งที่รันรอบ 06:00/17:30 — เพิ่มบรรทัดนี้ท้าย `run.bat` (ก่อน `endlocal`):
 

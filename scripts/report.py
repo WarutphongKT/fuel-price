@@ -36,6 +36,7 @@ LOCAL_CONFIG_PATH = ROOT / "config.local.json"
 DB_PATH = ROOT / "data" / "prices.db"
 REPORT_DIR = ROOT / "reports"
 DASHBOARD_PATH = ROOT / "dashboard.html"
+INDEX_PATH = ROOT / "index.html"
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ThaiFuelPriceTracker/1.0"
 
@@ -528,6 +529,8 @@ def main():
     report_path.write_text(render_markdown(ctx), encoding="utf-8")
 
     DASHBOARD_PATH.write_text(theme.render_html(ctx), encoding="utf-8")
+    # สำเนาสำหรับ static hosting (GitHub Pages ใช้ index.html ที่ root)
+    INDEX_PATH.write_bytes(DASHBOARD_PATH.read_bytes())
 
     print(f"รายงาน: {report_path.relative_to(ROOT)}")
     print(f"แดชบอร์ด: {DASHBOARD_PATH.relative_to(ROOT)}")

@@ -9,7 +9,7 @@ where git >nul 2>nul || (echo git not found - skip publish & exit /b 0)
 git rev-parse --git-dir >nul 2>nul || (echo not a git repo - skip publish & exit /b 0)
 git rev-parse --abbrev-ref "@{u}" >nul 2>nul || (echo no upstream remote - skip publish & exit /b 0)
 
-git add dashboard.html reports >nul
+git add dashboard.html index.html reports >nul
 git diff --cached --quiet && (echo no changes to publish & exit /b 0)
 
 git commit -q -m "Update dashboard %date% %time%"

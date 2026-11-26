@@ -13,5 +13,8 @@ echo [%date% %time%] build report
 %PYTHON% scripts\report.py
 if errorlevel 1 echo [%date% %time%] !! report failed
 
+echo [%date% %time%] publish
+call publish.bat
+
 echo [%date% %time%] done
 endlocal

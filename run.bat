@@ -13,6 +13,10 @@ echo [%date% %time%] build report
 %PYTHON% scripts\report.py
 if errorlevel 1 echo [%date% %time%] !! report failed
 
+echo [%date% %time%] save history snapshot
+%PYTHON% scripts\snapshot.py export data\history.json
+if errorlevel 1 echo [%date% %time%] !! snapshot failed
+
 echo [%date% %time%] publish
 call publish.bat
 

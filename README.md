@@ -32,18 +32,23 @@
 ```
 config.json              ตั้งค่าจังหวัด/อำเภอ/ผลิตภัณฑ์
 config.local.json        Telegram token (สร้างอัตโนมัติ, ไม่ขึ้น git)
-scripts/fetch.py         ดึงราคา + ตลาดโลก -> data/prices.db
+scripts/fetch.py         ดึงราคา + ตลาดโลก + ข่าว -> data/prices.db
 scripts/report.py        สร้าง reports/*.md, dashboard.html, ส่ง Telegram
 scripts/theme.py         ชั้น view: HTML + CSS ของแดชบอร์ด
+scripts/snapshot.py      สำรอง/กู้ประวัติราคาเป็น data/history.json
 scripts/common.py        ตัวจัดรูปแบบวันที่/ตัวเลขภาษาไทย (ใช้ร่วมกัน)
 scripts/serve.py         เปิด dashboard ให้มือถือดูในวง LAN
 scripts/telegram_setup.py  ตั้งค่า Telegram อัตโนมัติ
+.github/workflows/update.yml  อัปเดตหน้าเว็บอัตโนมัติบน GitHub (24 ชม.)
 run.bat                  รันทั้งชุด (ใช้โดย Task Scheduler)
-publish.bat              push dashboard.html + index.html + reports ขึ้น git
+publish.bat              push dashboard.html + index.html + reports + history ขึ้น git
 setup_schedule.ps1       ตั้ง/ลบ/ตรวจงานเวลา 06:00 และ 17:30
 ```
 
 ไฟล์ที่ generate: `dashboard.html`, `index.html` (สำเนาสำหรับ static hosting), `reports/*.md`
+
+`data/history.json` คือสำเนาประวัติราคาแบบข้อความล้วน (ไม่ใช่ SQLite) ใช้กู้ฐานข้อมูล
+บนเครื่องใหม่หรือบน GitHub Actions ที่ดิสก์ไม่คงอยู่ระหว่างรอบ — `data/prices.db` ยังถูก ignore
 
 ## ใช้งาน
 
@@ -52,6 +57,15 @@ python scripts\fetch.py          # ดึงข้อมูล (ครั้ง�
 python scripts\report.py         # สร้างรายงาน + แดชบอร์ด
 start dashboard.html             # เปิดดู
 ```
+
+ย้ายเครื่อง / ตั้ง repo ใหม่ ให้กู้ประวัติก่อนดึงข้อมูล:
+
+```powershell
+python scripts\snapshot.py import data\history.json
+python scripts\snapshot.py export data\history.json   # สำรองล่าสุด
+```
+
+หรือรันทั้งหมดในครั้งเดียวด้วย `run.bat` (fetch → report → export snapshot → publish)
 
 ตั้งเวลาให้รันเองทุกวัน:
 
@@ -91,7 +105,7 @@ IP ดูได้จากข้อความที่สคริปต์�
 
 - ข้อดี: ไม่ต้องมีเซิร์ฟเวอร์ · ข้อเสีย: เป็นภาพนิ่ง ณ ตอนที่สร้าง ต้องส่งไฟล์ใหม่ทุกครั้ง
 
-### 3) เว็บสาธารณะฟรี (GitHub Pages) + อัปเดตเองทุกวัน
+### 3) เว็บสาธารณะฟรี (GitHub Pages) + อัปเดตอัตโนมัติ 24 ชั่วโมง
 
 ทำครั้งเดียว:
 
@@ -101,14 +115,23 @@ IP ดูได้จากข้อความที่สคริปต์�
 
 `report.py` เขียนทั้ง `dashboard.html` และ `index.html` (เนื้อหาเดียวกัน) เพื่อให้ URL รากเปิดได้เลย
 
-ให้อัปเดตอัตโนมัติทุกครั้งที่รันรอบ 06:00/17:30 — เพิ่มบรรทัดนี้ท้าย `run.bat` (ก่อน `endlocal`):
-
-```bat
-call publish.bat
-```
-
-`publish.bat` commit เฉพาะ `dashboard.html` + `reports/` แล้ว push
+**อัปเดตเองจากเครื่อง (ไม่ต้องมี Actions):** `run.bat` เรียก `publish.bat` ให้อยู่แล้ว
+ซึ่ง commit `dashboard.html` + `index.html` + `reports/` + `data/history.json` แล้ว push
 (ถ้ายังไม่มี remote/upstream จะข้ามเอง ไม่ทำให้ scheduled task ล้ม)
+
+**หรือให้ GitHub อัปเดตให้ตลอด 24 ชม. แม้คอมที่บ้านปิด:**
+workflow `.github/workflows/update.yml` ตั้งเวลาไว้ 7 รอบ/วัน (เวลาไทย)
+05:00 · 06:00 · 15:30 · 16:45 · 17:30 · 18:30 · 21:00
+โดยกู้ประวัติจาก `data/history.json` → ดึงราคา/ข่าว → สร้างหน้าเว็บ → commit + push กลับเข้า `main`
+เปิดใช้เพิ่มแค่:
+
+1. **Settings → Secrets and variables → Actions → New repository secret** (ถ้าต้องการ Telegram)
+   - `TELEGRAM_BOT_TOKEN`
+   - `TELEGRAM_CHAT_ID`
+2. แท็บ **Actions → Update fuel price dashboard → Run workflow** เพื่อทดสอบรอบแรก
+
+ถ้าไม่ใส่ secret ระบบยังอัปเดตเว็บปกติ แค่ไม่ส่ง Telegram
+(ปุ่ม `workflow_dispatch` มีไว้กดรันมือได้ตลอด)
 
 - ข้อดี: ใครมีลิงก์ก็เปิดได้ ไม่ต้องเปิดคอม · ข้อเสีย: หน้าเว็บเป็นข้อมูลรอบล่าสุดที่ push ขึ้นไป
 - ข้อควรรู้: หน้าเว็บแสดงชื่ออำเภอ/จังหวัด ถ้าไม่อยากให้คนนอกรู้ ให้แก้ `config.json` เป็นระดับจังหวัด
@@ -127,6 +150,17 @@ cloudflared tunnel --url http://localhost:8765
 
 `dashboard.html` เป็นไฟล์เดียวจบ (CSS ฝังใน) เปิดด้วย `file://` ได้ ไม่ต้องต่อเน็ต
 ยกเว้นฟอนต์ IBM Plex Sans Thai จาก Google Fonts (ถ้าออฟไลน์จะ fallback เป็น Leelawadee UI)
+
+ส่วนบนสุดของหน้าเป็น **การ์ดคำแนะนำ** ที่ตอบว่า "ควรเติมคืนนี้หรือรอพรุ่งนี้" โดยเรียงลำดับความน่าเชื่อถือ:
+
+1. ประกาศจริงของ ปตท.OR ที่มีผลพรุ่งนี้ (ขึ้น → เติมคืนนี้, ลง → รอพรุ่งนี้)
+2. ข่าวล่วงหน้าจากสำนักข่าวไทยที่เชื่อถือได้ภายใน 24 ชม. (ข่าวต่างประเทศถูกกรองออก)
+3. ช่วงเวลาเฝ้าระวัง 16:00–18:30 น. ที่ OR มักประกาศราคา
+4. แรงกดดันจาก Brent + USD/THB
+5. ถ้าไม่มีสัญญาณใด ๆ จะบอกว่าราคาทรงตัว เติมได้ตามปกติ
+
+ถ้าระบบดึงข้อมูลไม่สำเร็จติดกันเกิน 18 ชั่วโมง จะมีแถบเตือน "ข้อมูลอาจเก่า" ด้านบนสุด
+และยังมี `last_fetch_at` แยกจากเวลาที่ราคามีผลจริง เพื่อไม่ให้เข้าใจผิดว่าข้อมูลสด
 
 หลักการออกแบบที่ใช้ตัดสินใจทุกจุด:
 
@@ -153,4 +187,5 @@ cloudflared tunnel --url http://localhost:8765
 - ราคา OR ไม่รวมภาษีบำรุงท้องที่ (ถ้ามี)
 - ข้อมูลย้อนหลังของ OR ก่อน มี.ค. 2569 มีไม่ครบ สถิติจึงเริ่มตั้งแต่ต้นปีตามข้อมูลที่มี
 - ผลิตภัณฑ์ที่เลิกจำหน่ายจะค้างราคาเดิม — แดชบอร์ดจะแสดง "ไม่ปรับมา N วัน" ให้เห็น
-- ระบบดึงข้อมูล 2 ครั้ง/วัน (และ 1 ครั้ง/เดือน สำหรับเดือนก่อน) เพื่อไม่รบกวนเซิร์ฟเวอร์ต้นทาง
+- ระบบดึงข้อมูล 7 รอบ/วันบน GitHub Actions (หรือ 2 รอบ/วันถ้าใช้ Task Scheduler ในเครื่อง)
+  และ 1 ครั้ง/เดือนสำหรับเดือนก่อน เพื่อไม่รบกวนเซิร์ฟเวอร์ต้นทาง

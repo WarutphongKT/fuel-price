@@ -39,6 +39,8 @@ FX_URL = "https://api.frankfurter.app/{start}..?from=USD&to=THB"
 NEWS_QUERIES = [
     "ราคาน้ำมันพรุ่งนี้",
     "ราคาน้ำมัน ปรับขึ้น",
+    "ราคาน้ำมัน ปรับลด",
+    "ราคาน้ำมัน วันนี้ ปตท",
 ]
 NEWS_URL = "https://news.google.com/rss/search?q={q}&hl=th&gl=TH&ceid=TH:th"
 
@@ -91,9 +93,10 @@ def get_json(url, form=None, label="request"):
 
 
 # ---------------------------------------------------------------- database
-def connect():
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
+def connect(db_path=None):
+    db_path = Path(db_path) if db_path else DB_PATH
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS price_change (

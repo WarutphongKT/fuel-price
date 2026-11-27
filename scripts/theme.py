@@ -34,6 +34,7 @@ CSS = """
   --up:#b42318; --up-bg:#fbeae8;
   --down:#067647; --down-bg:#e6f4ec;
   --flat:#6b6357; --flat-bg:#efebe3;
+  --warn-bg:#fdf3d7; --warn-ink:#6b4a00; --warn-line:#e6cf9a;
   --r-card:12px; --r-chip:8px;
   --maxw:1040px;
   color-scheme:light;
@@ -46,6 +47,7 @@ CSS = """
     --up:#f97066; --up-bg:#2b1a18;
     --down:#47cd89; --down-bg:#12251b;
     --flat:#a79e8f; --flat-bg:#241f1a;
+    --warn-bg:#2a2213; --warn-ink:#f2c879; --warn-line:#4a3a1c;
     color-scheme:dark;
   }
 }
@@ -141,6 +143,51 @@ h1 .place{color:var(--muted);font-weight:500}
 .panel{
   background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);
   padding:18px 20px;margin-bottom:18px;
+}
+.notice{
+  margin:0 0 18px;padding:11px 14px;border:1px solid var(--warn-line);
+  border-radius:var(--r-chip);background:var(--warn-bg);color:var(--warn-ink);
+  font-size:13px;font-weight:500;line-height:1.65;
+}
+.advice-card{
+  border-radius:var(--r-card);padding:18px 20px;margin-bottom:18px;
+  border:1px solid var(--line);background:var(--surface);
+  position:relative;
+}
+.advice-up{
+  border-color:var(--up);background:var(--up-bg);
+  box-shadow:0 0 0 1px var(--up) inset;
+}
+.advice-down{
+  border-color:var(--down);background:var(--down-bg);
+  box-shadow:0 0 0 1px var(--down) inset;
+}
+.advice-warn{
+  border-color:var(--warn-line);background:var(--warn-bg);
+  box-shadow:0 0 0 1px var(--warn-line) inset;
+}
+.advice-neutral{
+  border-color:var(--line);background:var(--surface);
+}
+.advice-badge{
+  display:inline-block;padding:3px 10px;border-radius:var(--r-chip);
+  font-size:12.5px;font-weight:700;letter-spacing:0.2px;margin-bottom:10px;
+}
+.advice-up .advice-badge{background:var(--up);color:#fff}
+.advice-down .advice-badge{background:var(--down);color:#fff}
+.advice-warn .advice-badge{background:var(--warn-ink);color:#fff}
+.advice-neutral .advice-badge{background:var(--muted);color:#fff}
+.advice-title{
+  margin:0 0 6px;font-size:1.15rem;font-weight:700;line-height:1.4;
+}
+.advice-up .advice-title{color:var(--up)}
+.advice-down .advice-title{color:var(--down)}
+.advice-warn .advice-title{color:var(--warn-ink)}
+.advice-action{
+  margin:0 0 6px;font-size:14.5px;font-weight:600;line-height:1.6;
+}
+.advice-detail{
+  margin:0;font-size:13px;color:var(--muted);line-height:1.55;
 }
 .panel-head{
   display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline;justify-content:space-between;
@@ -290,6 +337,36 @@ def sparkline(values, height=88, width=560, stroke_width=2):
 
 
 # ---------------------------------------------------------------- sections
+def render_stale(ctx):
+    """เตือนเมื่อระบบดึงข้อมูลไม่สำเร็จติดกันนานผิดปกติ (ข้อมูลอาจเก่า)"""
+    fetched = ctx.get("last_fetch_at") or ctx["snapshot_at"]
+    hours = (ctx["now"] - fetched).total_seconds() / 3600
+    if hours < 18:
+        return ""
+    age = f"{int(hours)} ชั่วโมง" if hours < 48 else f"{int(hours // 24)} วัน"
+    return (
+        '<p class="notice" role="status">'
+        f"ข้อมูลอัปเดตล่าสุดเมื่อ {age}ที่แล้ว — ระบบดึงข้อมูลอัตโนมัติอาจหยุดทำงาน "
+        "ตรวจราคาหน้าสถานีก่อนเติมน้ำมัน</p>"
+    )
+
+
+def render_advice(ctx):
+    """คำแนะนำการตัดสินใจเติมน้ำมันเพื่อป้องกันการเสียเงินแพงขึ้น"""
+    advice = ctx.get("advice")
+    if not advice:
+        return ""
+    theme_cls = f"advice-{advice.get('theme', 'neutral')}"
+    return f"""
+<section class="advice-card {theme_cls}" aria-label="คำแนะนำการเติมน้ำมัน">
+  <div class="advice-badge">{html.escape(advice['badge'])}</div>
+  <h2 class="advice-title">{html.escape(advice['title'])}</h2>
+  <p class="advice-action">{html.escape(advice['action'])}</p>
+  <p class="advice-detail">{html.escape(advice['detail'])}</p>
+</section>
+"""
+
+
 def render_hero(ctx):
     reference = next(
         (card for card in ctx["cards"] if card["product"] == ctx["reference"]),
@@ -643,6 +720,8 @@ def render_html(ctx):
   </header>
 
   <main id="main">
+    {render_stale(ctx)}
+    {render_advice(ctx)}
     {render_hero(ctx)}
     {render_prices(ctx)}
     <div class="duo">

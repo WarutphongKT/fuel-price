@@ -1,0 +1,72 @@
+name: Update fuel price dashboard
+
+# อัปเดตหน้าเว็บอัตโนมัติตลอด 24 ชั่วโมง แม้คอมพิวเตอร์ที่บ้านจะปิดอยู่
+# เวลาใน UTC (UTC+7 คือเวลาไทย):
+# 22:00 UTC = 05:00 น. (เวลาที่ราคาใหม่เริ่มมีผลจริงหน้าปั๊ม ปตท.OR)
+# 23:00 UTC = 06:00 น. (สรุปรอบเช้า ยืนยันราคาวันนี้)
+# 08:30 UTC = 15:30 น. (เฝ้าระวังข่าวด่วนรอบบ่าย)
+# 09:45 UTC = 16:45 น. (ช่วงเวลาสำคัญ ปตท.OR มักแถลงข่าวปรับราคาพรุ่งนี้)
+# 10:30 UTC = 17:30 น. (สรุปข่าวและตรวจราคาล่วงหน้าของพรุ่งนี้)
+# 11:30 UTC = 18:30 น. (เก็บตกและยืนยันรอบค่ำ)
+# 14:00 UTC = 21:00 น. (เตือนรอบดึกก่อนเข้านอน ให้มีเวลาแวะเติมก่อน 05:00 น.)
+on:
+  schedule:
+    - cron: "0 22 * * *"
+    - cron: "0 23 * * *"
+    - cron: "30 8 * * *"
+    - cron: "45 9 * * *"
+    - cron: "30 10 * * *"
+    - cron: "30 11 * * *"
+    - cron: "0 14 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: fuel-update
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Restore price history
+        run: |
+          if [ -f data/history.json ]; then
+            python scripts/snapshot.py import data/history.json
+          else
+            echo "no snapshot yet - the next fetch will pull the whole year"
+          fi
+
+      - name: Fetch prices, market and news
+        run: python scripts/fetch.py
+
+      - name: Build dashboard and report
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python scripts/report.py
+
+      - name: Save price history
+        run: python scripts/snapshot.py export data/history.json
+
+      - name: Commit and push
+        run: |
+          git config user.name "fuel-price-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add dashboard.html index.html reports data/history.json
+          if git diff --cached --quiet; then
+            echo "no changes to publish"
+            exit 0
+          fi
+          git commit -m "Update fuel price dashboard $(date -u '+%Y-%m-%d %H:%M UTC')"
+          git pull --rebase origin main || true
+          git push

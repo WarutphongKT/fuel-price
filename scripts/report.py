@@ -40,6 +40,21 @@ INDEX_PATH = ROOT / "index.html"
 
 UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ThaiFuelPriceTracker/1.0"
 
+# สำนักข่าวไทยที่เชื่อถือได้สำหรับข่าวราคาน้ำมันในประเทศ
+CREDIBLE_HINTS = (
+    "thairath", "bangkokbiznews", "prachachat", "kaohoon", "infoquest",
+    "posttoday", "thansettakij", "matichon", "krungthep", "manager",
+    "baseeconomic", "efinance", "pptv", "nation", "tnn", "springnews",
+    "amarintv", "ch7", "ch3", "workpoint", "sanook", "moneyandbanking",
+)
+
+# ข่าวราคาน้ำมันของประเทศเพื่อนบ้าน ไม่ใช้เป็นสัญญาณเตือนราคาในไทย
+FOREIGN_HINTS = (
+    "vietnam", "lao", "laos", "china", "malaysia", "cambodia", "myanmar",
+    "philippines", "indonesia", "ลาว", "เวียดนาม", "กัมพูชา", "มาเลเซีย",
+    "เมียนมา", "ฟิลิปปินส์", "อินโดนีเซีย", "จีน", "ต่างประเทศ",
+)
+
 
 def load_config():
     config = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -174,6 +189,16 @@ def build_context(conn, config):
     order += [p for p in timeline if p not in order]
 
     snapshot_at = max(dt for dt, _ in latest_by_product.values())
+    last_fetch_row = conn.execute(
+        "SELECT MAX(fetched_at) FROM price_change WHERE province=? AND district=?",
+        (province, district),
+    ).fetchone()
+    last_fetch_at = snapshot_at
+    if last_fetch_row and last_fetch_row[0]:
+        try:
+            last_fetch_at = datetime.fromisoformat(last_fetch_row[0])
+        except ValueError:
+            pass
 
     cards = []
     for product in order:
@@ -230,16 +255,11 @@ def build_context(conn, config):
     pressure_class, pressure_label = pressure_text(brent, fx)
 
     tomorrow_tag = f"{tomorrow.day} {THAI_MONTHS_SHORT[tomorrow.month - 1]}"
-    credible_hints = (
-        "thairath", "bangkokbiznews", "prachachat", "kaohoon", "infoquest",
-        "posttoday", "thansettakij", "matichon", "krungthep", "manager",
-        "baseeconomic", "efinance", "pptv", "nation", "tnn", "springnews",
-        "amarintv", "ch7", "ch3", "workpoint", "sanook", "moneyandbanking",
-    )
     for item in news:
         item["for_tomorrow"] = tomorrow_tag in item["title"]
         source_key = (item["source"] or "").lower()
-        item["credible"] = any(hint in source_key for hint in credible_hints)
+        item["credible"] = any(hint in source_key for hint in CREDIBLE_HINTS)
+        item["foreign"] = any(hint in source_key for hint in FOREIGN_HINTS)
         item["score"] = (
             (4 if "พรุ่งนี้" in item["title"] else 0)
             + (2 if item["for_tomorrow"] else 0)
@@ -260,6 +280,10 @@ def build_context(conn, config):
     news.sort(key=lambda x: (x["score"], x["published"]), reverse=True)
     news = news[:5]
 
+    advice = compute_advice(
+        tomorrow_events, news, now, pressure_class, pressure_label, brent, tomorrow
+    )
+
     return {
         "config": config,
         "province": province,
@@ -269,6 +293,7 @@ def build_context(conn, config):
         "today": today,
         "tomorrow": tomorrow,
         "snapshot_at": snapshot_at,
+        "last_fetch_at": last_fetch_at,
         "cards": cards,
         "events": events,
         "tomorrow_events": tomorrow_events,
@@ -282,6 +307,140 @@ def build_context(conn, config):
         "pressure_class": pressure_class,
         "pressure_label": pressure_label,
         "news": news,
+        "advice": advice,
+    }
+
+
+def compute_advice(
+    tomorrow_events, news, now, pressure_class, pressure_label, brent, tomorrow
+):
+    """
+    คำนวณคำแนะนำด่วนเพื่อป้องกันการเติมน้ำมันแพง:
+      1) ทางการ ปตท.OR ยืนยันราคาพรุ่งนี้แล้ว (ปรับขึ้น -> รีบเติมคืนนี้ / ปรับลง -> รอเติมพรุ่งนี้)
+      2) สัญญาณข่าวประกาศล่วงหน้า (หากยังไม่มีในระบบทางการ)
+      3) ช่วงเวลาเฝ้าระวัง 16:00-18:30 น.
+      4) แรงกดดันตลาดโลก (Brent/USDTHB)
+      5) สถานะปกติ
+    """
+    if tomorrow_events:
+        ups = [e for e in tomorrow_events if e["delta"] > 0]
+        downs = [e for e in tomorrow_events if e["delta"] < 0]
+        if ups and not downs:
+            max_up = max(e["delta"] for e in ups)
+            items_str = ", ".join(f"{e['product']} +{e['delta']:.2f}" for e in sorted(ups, key=lambda x: -x["delta"]))
+            return {
+                "theme": "up",
+                "badge": "🚨 แนะนำ: เติมน้ำมันคืนนี้ก่อน 05:00 น.!",
+                "title": f"พรุ่งนี้ราคาปรับขึ้นสูงสุด +{max_up:.2f} บาท/ลิตร",
+                "action": "รีบเติมให้เต็มถังคืนนี้ก่อน 05:00 น. เพื่อประหยัดเงินและหลีกเลี่ยงราคาใหม่ที่แพงขึ้น",
+                "detail": f"รายการปรับขึ้น: {items_str} (มีผลพรุ่งนี้ 05:00 น.)",
+            }
+        elif downs and not ups:
+            max_down = min(e["delta"] for e in downs)
+            items_str = ", ".join(f"{e['product']} {e['delta']:.2f}" for e in sorted(downs, key=lambda x: x["delta"]))
+            return {
+                "theme": "down",
+                "badge": "🟢 แนะนำ: อย่าเพิ่งเติม! รอเติมพรุ่งนี้หลัง 05:00 น.",
+                "title": f"พรุ่งนี้ราคาปรับลดลงสูงสุด {abs(max_down):.2f} บาท/ลิตร",
+                "action": "ชะลอการเติมไว้ก่อน รอไปเติมพรุ่งนี้หลัง 05:00 น. จะได้ราคาน้ำมันที่ถูกลงอย่างแน่นอน",
+                "detail": f"รายการปรับลด: {items_str} (มีผลพรุ่งนี้ 05:00 น.)",
+            }
+        elif ups and downs:
+            up_str = ", ".join(f"{e['product']} +{e['delta']:.2f}" for e in ups)
+            down_str = ", ".join(f"{e['product']} {e['delta']:.2f}" for e in downs)
+            return {
+                "theme": "warn",
+                "badge": "⚠️ แนะนำ: ตรวจสอบกลุ่มน้ำมันของคุณก่อนเติม",
+                "title": "พรุ่งนี้มีทั้งกลุ่มที่ปรับขึ้นและปรับลดราคา",
+                "action": f"กลุ่มที่ขึ้น ({up_str}) ให้เติมคืนนี้ก่อน 05:00 น. / กลุ่มที่ลด ({down_str}) ให้รอเติมพรุ่งนี้หลัง 05:00 น.",
+                "detail": "ราคาปรับเปลี่ยนไม่เท่ากันในแต่ละกลุ่มน้ำมัน ตรวจสอบชนิดที่รถของคุณใช้ก่อนเติม",
+            }
+
+    # ตรวจสอบข่าวล่วงหน้าภายใน 24 ชม. (เฉพาะสำนักข่าวไทยที่เชื่อถือได้ และเป็นข่าวของพรุ่งนี้จริง)
+    fuel_words = ("ราคาน้ำมัน", "ดีเซล", "แก๊สโซฮอล์", "เบนซิน", "E20", "E85", "B7", "B20")
+    tomorrow_tag = f"{tomorrow.day} {THAI_MONTHS_SHORT[tomorrow.month - 1]}"
+    for item in news:
+        published = item["published"]
+        if (now - published).total_seconds() > 86400:
+            continue
+        if not item.get("credible") or item.get("foreign"):
+            continue
+        t = item["title"]
+        if not any(w in t for w in fuel_words):
+            continue
+
+        # ต้องเป็นข่าวที่พูดถึงราคาของ "พรุ่งนี้" อย่างชัดเจน
+        if "พรุ่งนี้" not in t and tomorrow_tag not in t:
+            continue
+
+        # วันที่ที่ข่าวหมายถึง: ปกติคือวันถัดจากวันที่เผยแพร่ แต่ถ้าระบุวันพรุ่งนี้ชัดเจนให้ใช้วันพรุ่งนี้
+        target = published.date() + timedelta(days=1)
+        if tomorrow_tag in t:
+            target = tomorrow
+        if target == now.date():
+            if now.hour >= 5:
+                continue  # ราคาใหม่มีผลไปแล้ว ข่าวนี้ใช้เตือนไม่ได้
+            when = "เช้านี้ก่อน 05:00 น."
+        elif target == tomorrow:
+            when = "คืนนี้ก่อน 05:00 น."
+        else:
+            continue
+
+        ups = any(w in t for w in ("ปรับขึ้น", "ขยับขึ้น", "ขึ้นราคา", "พุ่งขึ้น"))
+        downs = any(w in t for w in ("ปรับลด", "ขยับลง", "ปรับลง", "ลดราคา"))
+        if ups == downs:
+            continue
+        if ups:
+            return {
+                "theme": "up",
+                "badge": "📢 สัญญาณข่าวเตือน: มีแนวโน้มปรับขึ้นราคา",
+                "title": "สำนักข่าวรายงานแนวโน้มปรับขึ้นราคาน้ำมัน",
+                "action": f"หากระดับน้ำมันในถังเหลือน้อย แนะนำให้แวะเติม{when}เพื่อป้องกันการเสียเงินแพงขึ้น",
+                "detail": f"ตามรายงาน: \"{t}\" ({item.get('source') or 'สำนักข่าว'}) — รอระบบทางการ ปตท.OR ยืนยัน",
+            }
+        return {
+            "theme": "down",
+            "badge": "📢 สัญญาณข่าวแจ้ง: มีแนวโน้มปรับลดราคา",
+            "title": "สำนักข่าวรายงานแนวโน้มปรับลดราคาน้ำมัน",
+            "action": "หากน้ำมันยังไม่หมดถัง แนะนำให้ชะลอการเติมเพื่อรอราคาใหม่ที่ถูกลง",
+            "detail": f"ตามรายงาน: \"{t}\" ({item.get('source') or 'สำนักข่าว'}) — รอระบบทางการ ปตท.OR ยืนยัน",
+        }
+
+    # ช่วงเวลาจับตาประกาศรอบเย็น (16:00 - 18:30 น.)
+    if 16 <= now.hour <= 18:
+        return {
+            "theme": "warn",
+            "badge": "🔍 เฝ้าระวังประกาศราคา (16:00 - 18:30 น.)",
+            "title": "ปตท.OR มักจะประกาศราคาน้ำมันของวันพรุ่งนี้ในช่วงเวลานี้",
+            "action": "ระบบกำลังติดตามการประกาศให้อัตโนมัติ หากมีการแจ้งปรับราคาจะอัปเดตคำแนะนำทันที",
+            "detail": "ประกาศช่วงเย็นจะมีผลบังคับใช้ในเวลา 05:00 น. ของวันถัดไป",
+        }
+
+    # ตลาดโลก
+    brent_val = f"{brent['value']:.2f} USD ({brent['pct']:+.2f}%)" if brent else ""
+    if pressure_class == "up":
+        return {
+            "theme": "warn",
+            "badge": "📊 ตลาดโลกส่งสัญญาณแรงกดดันขาขึ้น",
+            "title": f"ราคาน้ำมันดิบโลกและค่าเงินเอียงขึ้น ({pressure_label})",
+            "action": "ต้นทุนน้ำมันตลาดโลกมีทิศทางสูงขึ้น มีความเสี่ยงที่ราคาขายปลีกอาจปรับขึ้นใน 1-3 วันนี้ ไม่ควรปล่อยให้น้ำมันแห้งถัง",
+            "detail": f"Brent: {brent_val} · การปรับราคาขึ้นอยู่กับกองทุนน้ำมันฯ และค่าการตลาด",
+        }
+    elif pressure_class == "down":
+        return {
+            "theme": "down",
+            "badge": "📊 ตลาดโลกส่งสัญญาณแรงกดดันขาลง",
+            "title": f"ราคาน้ำมันดิบโลกและค่าเงินเอียงลง ({pressure_label})",
+            "action": "ต้นทุนตลาดโลกปรับตัวลดลง มีโอกาสที่ราคาขายปลีกจะทรงตัวหรือปรับลดลงได้",
+            "detail": f"Brent: {brent_val} · ติดตามประกาศของ ปตท.OR รอบถัดไป",
+        }
+
+    return {
+        "theme": "neutral",
+        "badge": "✔️ ราคาน้ำมันยังทรงตัว",
+        "title": "ยังไม่มีสัญญาณการปรับราคาในขณะนี้",
+        "action": "สามารถเติมน้ำมันได้ตามการใช้งานปกติ ณ ราคาปัจจุบัน",
+        "detail": "ระบบจะตรวจสอบและอัปเดตราคาจาก ปตท.OR อัตโนมัติทุกวันตลอด 24 ชั่วโมง",
     }
 
 
@@ -298,6 +457,14 @@ def render_markdown(ctx):
         f"· ดึงข้อมูลเมื่อ {ctx['now']:%d/%m/%Y %H:%M} น."
     )
     add("")
+
+    advice = ctx.get("advice")
+    if advice:
+        add(f"## {advice['badge']}")
+        add(f"**{advice['title']}**")
+        add(f"- **คำแนะนำ:** {advice['action']}")
+        add(f"- **รายละเอียด:** {advice['detail']}")
+        add("")
 
     add("## ราคาปัจจุบัน")
     add("")
@@ -444,6 +611,11 @@ def send_telegram(ctx, config, local):
         f"{thai_date(ctx['today'])} · ราคา ณ {ctx['snapshot_at']:%H:%M} น.",
         "",
     ]
+    advice = ctx.get("advice")
+    if advice:
+        lines.append(f"<b>{html.escape(advice['badge'])}</b>")
+        lines.append(f"💡 {html.escape(advice['action'])}")
+        lines.append("")
     for card in ctx["cards"][:6]:
         delta = card["delta"]
         arrow = "▲" if delta and delta > 0 else "▼" if delta and delta < 0 else "—"

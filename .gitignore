@@ -1,5 +1,6 @@
 config.local.json
-data/
+data/*
+!data/history.json
 logs/
 design/
 __pycache__/

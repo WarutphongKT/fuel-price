@@ -180,6 +180,52 @@ h1 .place{color:var(--muted);font-weight:500}
 .panel-head h2{margin:0;font-size:1rem;font-weight:600}
 .hint{margin:0;font-size:12px;color:var(--muted)}
 
+.picker{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:14px 18px 16px;margin-bottom:18px;
+}
+.picker-head{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;justify-content:space-between}
+.picker h2{margin:0;font-size:.95rem;font-weight:600}
+.picks{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pick{position:relative;display:inline-flex}
+.pick input{position:absolute;width:1px;height:1px;margin:0;opacity:0}
+.pick span{
+  display:inline-flex;align-items:center;min-height:34px;padding:5px 13px;
+  border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);
+  font-size:13px;font-weight:500;line-height:1.4;cursor:pointer;
+  transition:background .12s ease,border-color .12s ease,color .12s ease;
+}
+.pick span:hover{border-color:var(--ink)}
+.pick input:checked + span{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:600}
+.pick input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+
+.chart-panel .panel-head{align-items:flex-start}
+.range{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line-strong);border-radius:999px}
+.range button{
+  appearance:none;border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;
+  line-height:1.4;padding:4px 11px;border-radius:999px;cursor:pointer;min-height:28px;
+}
+.range button:hover{color:var(--ink)}
+.range button[aria-pressed="true"]{background:var(--ink);color:var(--paper);font-weight:600}
+.chart-wrap{position:relative;height:280px;margin-top:8px}
+@media (max-width:640px){.chart-wrap{height:220px}}
+#price-chart{display:block;width:100%;height:100%;touch-action:pan-y}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-axis{fill:var(--muted);font-size:10.5px}
+.chart-line{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart-dot{fill:var(--ink);stroke:var(--surface);stroke-width:1.5}
+.chart-hover-line{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 3}
+.chart-hover-dot{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
+.chart-tip{
+  position:absolute;z-index:2;pointer-events:none;background:var(--ink);color:var(--paper);
+  border-radius:var(--r-chip);padding:5px 9px;font-size:12px;font-weight:500;white-space:nowrap;
+  transform:translate(-50%,-130%);
+}
+.chart-range-note{display:flex;flex-wrap:wrap;gap:2px 14px;margin:8px 0 0;font-size:12px;color:var(--muted)}
+.chart-range-note b{color:var(--ink);font-weight:600}
+.js-only{display:none}
+.js .js-only{display:block}
+
 table.prices,table.recent{width:100%;border-collapse:collapse;font-size:13.5px}
 table.prices th,table.recent th{
   text-align:left;font-size:11.5px;font-weight:600;color:var(--muted);
@@ -275,11 +321,12 @@ footer{
 }
 footer p{margin:0 0 4px}
 @media print{
-  .skip,.pills{display:none}
+  .skip,.pills,.picker,.range{display:none}
   body{background:#fff;color:#000}
   .card,.panel{border-color:#ccc}
 }
 </style>
+<script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
 <a class="skip" href="#main">ข้ามไปที่เนื้อหา</a>
@@ -292,7 +339,7 @@ footer p{margin:0 0 4px}
     </div>
     <div class="pills">
       <span class="pill">จ.อำนาจเจริญ</span>
-      <span class="pill">อัปเดต 09:20 น.</span>
+      <span class="pill">อัปเดต 11:22 น.</span>
     </div>
   </header>
 
@@ -307,21 +354,32 @@ footer p{margin:0 0 4px}
 </section>
 
     
+<section class="picker js-only" aria-labelledby="picker-title">
+  <div class="picker-head">
+    <h2 id="picker-title">เลือกประเภทน้ำมัน</h2>
+    <p class="hint">เลือกแล้วราคาและกราฟด้านล่างจะเปลี่ยนตาม</p>
+  </div>
+  <div class="picks" role="radiogroup" aria-label="ประเภทน้ำมันที่ต้องการดู">
+    <label class="pick"><input type="radio" name="product" value="ดีเซล B7" checked><span>ดีเซล B7</span></label><label class="pick"><input type="radio" name="product" value="ดีเซล B20"><span>ดีเซล B20</span></label><label class="pick"><input type="radio" name="product" value="แก๊สโซฮอล์ 95"><span>แก๊สโซฮอล์ 95</span></label><label class="pick"><input type="radio" name="product" value="แก๊สโซฮอล์ 91"><span>แก๊สโซฮอล์ 91</span></label><label class="pick"><input type="radio" name="product" value="แก๊สโซฮอล์ E20"><span>แก๊สโซฮอล์ E20</span></label><label class="pick"><input type="radio" name="product" value="แก๊สโซฮอล์ E85"><span>แก๊สโซฮอล์ E85</span></label><label class="pick"><input type="radio" name="product" value="เบนซิน 95"><span>เบนซิน 95</span></label><label class="pick"><input type="radio" name="product" value="SP GSH95"><span>SP GSH95</span></label><label class="pick"><input type="radio" name="product" value="SP Diesel"><span>SP Diesel</span></label><label class="pick"><input type="radio" name="product" value="SP X99"><span>SP X99</span></label>
+  </div>
+</section>
+
+    
 <section class="hero" aria-label="ราคาหลักและประกาศพรุ่งนี้">
   <div class="card hero-main">
-    <p class="eyebrow">ราคาอ้างอิงหลัก</p>
+    <p class="eyebrow">ราคาน้ำมัน</p>
     <div class="hero-head">
       <h2 id="hero-title">ดีเซล B7</h2>
-      <span class="chip down"><span aria-hidden="true">▼ 0.60</span><span class="sr-only">ลดลง 0.60 บาท</span></span>
+      <span id="hero-chip"><span class="chip down"><span aria-hidden="true">▼ 0.60</span><span class="sr-only">ลดลง 0.60 บาท</span></span></span>
     </div>
     <p class="hero-price">
-      <span class="num">39.95</span>
+      <span class="num" id="hero-price-num">39.95</span>
       <span class="unit">บาท/ลิตร</span>
     </p>
-    <p class="hero-note">มีผล 25 พ.ย. 69 05:00 น. · ลดลงจากครั้งก่อน</p>
+    <p class="hero-note" id="hero-note">มีผล 25 พ.ย. 69 05:00 น. · ลดลงจากครั้งก่อน</p>
     <div class="hero-chart">
-      <div class="cap"><span>แนวโน้ม 120 วัน</span><span>37.30 – 44.15</span></div>
-      <svg class="spark" viewBox="0 0 560 88" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="3.0,85.0 32.2,74.8 61.3,64.6 90.5,55.7 119.6,47.3 148.8,37.1 177.9,28.1 207.1,19.2 236.3,10.2 265.4,3.0 294.6,3.0 323.7,15.0 352.9,15.0 382.1,23.9 411.2,35.9 440.4,45.5 469.5,45.5 498.7,46.1 527.8,53.3 557.0,53.3" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/><circle class="spark-dot" cx="557.0" cy="53.3" r="2.6"/></svg>
+      <div class="cap"><span>แนวโน้ม 120 วัน</span><span id="hero-range">37.30 – 44.15</span></div>
+      <div id="hero-spark"><svg class="spark" viewBox="0 0 560 88" preserveAspectRatio="none" aria-hidden="true" focusable="false"><polyline points="3.0,85.0 32.2,74.8 61.3,64.6 90.5,55.7 119.6,47.3 148.8,37.1 177.9,28.1 207.1,19.2 236.3,10.2 265.4,3.0 294.6,3.0 323.7,15.0 352.9,15.0 382.1,23.9 411.2,35.9 440.4,45.5 469.5,45.5 498.7,46.1 527.8,53.3 557.0,53.3" fill="none" stroke="currentColor" stroke-width="2" vector-effect="non-scaling-stroke" stroke-linejoin="round" stroke-linecap="round"/><circle class="spark-dot" cx="557.0" cy="53.3" r="2.6"/></svg></div>
     </div>
   </div>
   <aside class="card tomorrow" aria-labelledby="tomorrow-title">
@@ -331,6 +389,26 @@ footer p{margin:0 0 4px}
     
     <p class="more"><a href="#news">ดูข่าวประกาศล่าสุด</a></p>
   </aside>
+</section>
+
+    
+<section class="panel chart-panel js-only" aria-labelledby="chart-title">
+  <div class="panel-head">
+    <div>
+      <h2 id="chart-title">กราฟราคา · ดีเซล B7</h2>
+      <p class="hint" id="chart-sub">ล่าสุด 39.95 บาท/ลิตร</p>
+    </div>
+    <div class="range" role="group" aria-label="ช่วงเวลาของกราฟ">
+      <button type="button" data-days="30" aria-pressed="false">30 วัน</button>
+      <button type="button" data-days="90" aria-pressed="false">90 วัน</button>
+      <button type="button" data-days="365" aria-pressed="true">1 ปี</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <svg id="price-chart" role="img" aria-label="กราฟราคา ดีเซล B7 ย้อนหลัง 1 ปี"></svg>
+    <div id="chart-tip" class="chart-tip" hidden></div>
+  </div>
+  <p class="chart-range-note" id="chart-range-note"></p>
 </section>
 
     
@@ -429,8 +507,286 @@ footer p{margin:0 0 4px}
       <a href="https://api.frankfurter.app/">USD/THB (อ้างอิง ECB)</a></p>
     <p>ราคา ปตท.OR ไม่รวมภาษีบำรุงท้องที่ (ถ้ามี) · ราคาแต่ละอำเภอต่างกันตามค่าขนส่ง ·
       ตรวจสอบราคาหน้าสถานีก่อนเติมน้ำมันทุกครั้ง</p>
-    <p>สร้างอัตโนมัติเมื่อ 27/11/2026 09:20 น. · ตัวเลขทั้งหมดเป็นข้อมูลจริงจากฐานข้อมูล ไม่ใช่ตัวอย่าง</p>
+    <p>สร้างอัตโนมัติเมื่อ 27/11/2026 11:22 น. · ตัวเลขทั้งหมดเป็นข้อมูลจริงจากฐานข้อมูล ไม่ใช่ตัวอย่าง</p>
   </footer>
 </div>
+<script type="application/json" id="fuel-data">{"products":[{"name":"ดีเซล B7","price":39.95,"price_text":"39.95","delta":-0.6,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.60<\/span><span class=\"sr-only\">ลดลง 0.60 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"25 พ.ย. 69 05:00 น.","summary":"ล่าสุด 39.95 บาท/ลิตร · ลดลงจากครั้งก่อน 0.60 จากครั้งก่อน · มีผล 25 พ.ย. 69 05:00 น.","points":[["2026-01-09",30.55],["2026-02-18",30.55],["2026-03-10",30.55],["2026-03-18",31.05],["2026-03-21",31.75],["2026-03-24",33.55],["2026-03-26",39.55],["2026-03-31",41.35],["2026-04-02",44.85],["2026-04-03",48.35],["2026-04-04",48.35],["2026-04-05",51.15],["2026-04-09",49.01],["2026-04-11",45.01],["2026-04-17",43.51],["2026-04-21",42.31],["2026-04-24",40.81],["2026-05-01",41.41],["2026-05-08",40.56],["2026-05-13",41.36],["2026-05-14",42.06],["2026-05-19",42.81],["2026-05-26",41.81],["2026-05-29",41.81],["2026-05-30",41.31],["2026-06-04",42.11],["2026-06-06",41.41],["2026-06-09",41.91],["2026-06-11",41.41],["2026-06-13",40.41],["2026-06-16",39.41],["2026-06-17",39.41],["2026-06-19",38.11],["2026-06-23",38.11],["2026-06-24",38.11],["2026-06-25",38.11],["2026-07-03",38.11],["2026-07-08",35.55],["2026-07-22",36.4],["2026-07-23",37.3],["2026-08-06",37.3],["2026-08-12",38.15],["2026-08-19",39.0],["2026-09-02",39.75],["2026-09-09",40.45],["2026-09-15",41.3],["2026-09-24",42.05],["2026-10-02",42.8],["2026-10-09",43.55],["2026-10-21",44.15],["2026-10-28",44.15],["2026-10-29",43.15],["2026-11-05",43.15],["2026-11-06",42.4],["2026-11-11",41.4],["2026-11-18",40.6],["2026-11-19",40.6],["2026-11-20",40.55],["2026-11-25",39.95],["2026-11-26",39.95]],"selected":true},{"name":"ดีเซล B20","price":33.51,"price_text":"33.51","delta":-0.6,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.60<\/span><span class=\"sr-only\">ลดลง 0.60 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"25 พ.ย. 69 05:00 น.","summary":"ล่าสุด 33.51 บาท/ลิตร · ลดลงจากครั้งก่อน 0.60 จากครั้งก่อน · มีผล 25 พ.ย. 69 05:00 น.","points":[["2026-04-03",43.35],["2026-04-04",43.35],["2026-04-05",46.15],["2026-04-09",44.01],["2026-04-11",38.01],["2026-04-17",36.51],["2026-04-21",35.31],["2026-04-24",33.81],["2026-05-01",34.41],["2026-05-08",33.56],["2026-05-13",34.36],["2026-05-14",35.06],["2026-05-19",35.81],["2026-05-26",35.81],["2026-05-29",35.81],["2026-05-30",35.81],["2026-06-04",36.61],["2026-06-06",35.91],["2026-06-09",36.41],["2026-06-11",36.41],["2026-06-13",35.41],["2026-06-16",34.41],["2026-06-17",34.41],["2026-06-19",33.11],["2026-06-23",33.11],["2026-06-24",33.11],["2026-06-25",33.11],["2026-07-03",33.11],["2026-07-08",30.55],["2026-07-22",31.4],["2026-07-23",32.300000000000004],["2026-08-06",32.300000000000004],["2026-08-12",33.15],["2026-08-19",34.0],["2026-09-02",34.75],["2026-09-09",35.45],["2026-09-15",36.3],["2026-09-24",37.05],["2026-10-02",37.8],["2026-10-09",37.8],["2026-10-21",37.8],["2026-10-28",34.11],["2026-10-29",34.11],["2026-11-05",34.11],["2026-11-06",34.11],["2026-11-11",34.11],["2026-11-18",34.11],["2026-11-19",34.11],["2026-11-20",34.11],["2026-11-25",33.51],["2026-11-26",33.51]],"selected":false},{"name":"แก๊สโซฮอล์ 95","price":38.05,"price_text":"38.05","delta":-0.7,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.70<\/span><span class=\"sr-only\">ลดลง 0.70 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"26 พ.ย. 69 05:00 น.","summary":"ล่าสุด 38.05 บาท/ลิตร · ลดลงจากครั้งก่อน 0.70 จากครั้งก่อน · มีผล 26 พ.ย. 69 05:00 น.","points":[["2026-01-09",31.46],["2026-02-18",31.16],["2026-03-10",31.66],["2026-03-18",32.66],["2026-03-21",33.66],["2026-03-24",35.66],["2026-03-26",41.66],["2026-03-31",42.66],["2026-04-02",43.86],["2026-04-03",44.56],["2026-04-04",44.56],["2026-04-05",44.56],["2026-04-09",44.56],["2026-04-11",43.56],["2026-04-17",43.06],["2026-04-21",43.06],["2026-04-24",43.06],["2026-05-01",43.91],["2026-05-08",43.06],["2026-05-13",43.96],["2026-05-14",44.66],["2026-05-19",45.51],["2026-05-26",44.91],["2026-05-29",44.21],["2026-05-30",43.51],["2026-06-04",43.91],["2026-06-06",43.21],["2026-06-09",43.71],["2026-06-11",43.71],["2026-06-13",42.91],["2026-06-16",41.71],["2026-06-17",40.96],["2026-06-19",39.46],["2026-06-23",39.46],["2026-06-24",39.46],["2026-06-25",38.66],["2026-07-03",38.06],["2026-07-08",35.55],["2026-07-22",36.4],["2026-07-23",37.3],["2026-08-06",36.6],["2026-08-12",37.45],["2026-08-19",38.3],["2026-09-02",38.9],["2026-09-09",39.7],["2026-09-15",40.55],["2026-09-24",40.55],["2026-10-02",41.3],["2026-10-09",42.05],["2026-10-21",42.65],["2026-10-28",42.65],["2026-10-29",42.15],["2026-11-05",41.45],["2026-11-06",40.45],["2026-11-11",39.95],["2026-11-18",39.45],["2026-11-19",38.75],["2026-11-20",38.75],["2026-11-25",38.75],["2026-11-26",38.05]],"selected":false},{"name":"แก๊สโซฮอล์ 91","price":37.68,"price_text":"37.68","delta":-0.7,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.70<\/span><span class=\"sr-only\">ลดลง 0.70 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"26 พ.ย. 69 05:00 น.","summary":"ล่าสุด 37.68 บาท/ลิตร · ลดลงจากครั้งก่อน 0.70 จากครั้งก่อน · มีผล 26 พ.ย. 69 05:00 น.","points":[["2026-01-09",31.09],["2026-02-18",30.79],["2026-03-10",31.29],["2026-03-18",32.29],["2026-03-21",33.29],["2026-03-24",35.29],["2026-03-26",41.29],["2026-03-31",42.29],["2026-04-02",43.49],["2026-04-03",44.19],["2026-04-04",44.19],["2026-04-05",44.19],["2026-04-09",44.19],["2026-04-11",43.19],["2026-04-17",42.69],["2026-04-21",42.69],["2026-04-24",42.69],["2026-05-01",43.54],["2026-05-08",42.69],["2026-05-13",43.589999999999996],["2026-05-14",44.29],["2026-05-19",45.14],["2026-05-26",44.54],["2026-05-29",43.839999999999996],["2026-05-30",43.14],["2026-06-04",43.54],["2026-06-06",42.839999999999996],["2026-06-09",43.339999999999996],["2026-06-11",43.339999999999996],["2026-06-13",42.54],["2026-06-16",41.339999999999996],["2026-06-17",40.589999999999996],["2026-06-19",39.089999999999996],["2026-06-23",39.089999999999996],["2026-06-24",39.089999999999996],["2026-06-25",38.29],["2026-07-03",37.69],["2026-07-08",35.18],["2026-07-22",36.03],["2026-07-23",36.93],["2026-08-06",36.23],["2026-08-12",37.08],["2026-08-19",37.93],["2026-09-02",38.53],["2026-09-09",39.33],["2026-09-15",40.18],["2026-09-24",40.18],["2026-10-02",40.93],["2026-10-09",41.68],["2026-10-21",42.28],["2026-10-28",42.28],["2026-10-29",41.78],["2026-11-05",41.08],["2026-11-06",40.08],["2026-11-11",39.58],["2026-11-18",39.08],["2026-11-19",38.38],["2026-11-20",38.38],["2026-11-25",38.38],["2026-11-26",37.68]],"selected":false},{"name":"แก๊สโซฮอล์ E20","price":30.21,"price_text":"30.21","delta":-0.5,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.50<\/span><span class=\"sr-only\">ลดลง 0.50 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"26 พ.ย. 69 05:00 น.","summary":"ล่าสุด 30.21 บาท/ลิตร · ลดลงจากครั้งก่อน 0.50 จากครั้งก่อน · มีผล 26 พ.ย. 69 05:00 น.","points":[["2026-01-09",29.25],["2026-02-18",28.95],["2026-03-10",28.45],["2026-03-18",27.66],["2026-03-21",28.66],["2026-03-24",30.66],["2026-03-26",36.66],["2026-03-31",37.66],["2026-04-02",38.86],["2026-04-03",39.56],["2026-04-04",39.56],["2026-04-05",39.56],["2026-04-09",39.56],["2026-04-11",36.56],["2026-04-17",36.06],["2026-04-21",36.06],["2026-04-24",36.06],["2026-05-01",36.91],["2026-05-08",36.06],["2026-05-13",36.96],["2026-05-14",37.66],["2026-05-19",38.51],["2026-05-26",38.51],["2026-05-29",38.51],["2026-05-30",38.51],["2026-06-04",38.91],["2026-06-06",38.21],["2026-06-09",38.71],["2026-06-11",38.71],["2026-06-13",37.91],["2026-06-16",36.71],["2026-06-17",35.96],["2026-06-19",34.46],["2026-06-23",34.46],["2026-06-24",34.46],["2026-06-25",33.66],["2026-07-03",33.06],["2026-07-08",30.55],["2026-07-22",31.4],["2026-07-23",32.300000000000004],["2026-08-06",31.599999999999998],["2026-08-12",32.45],["2026-08-19",33.3],["2026-09-02",33.9],["2026-09-09",34.7],["2026-09-15",35.55],["2026-09-24",35.55],["2026-10-02",36.3],["2026-10-09",36.3],["2026-10-21",36.3],["2026-10-28",34.11],["2026-10-29",34.11],["2026-11-05",33.41],["2026-11-06",32.410000000000004],["2026-11-11",31.91],["2026-11-18",31.41],["2026-11-19",30.71],["2026-11-20",30.71],["2026-11-25",30.71],["2026-11-26",30.21]],"selected":false},{"name":"แก๊สโซฮอล์ E85","price":29.0,"price_text":"29.00","delta":-0.6,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.60<\/span><span class=\"sr-only\">ลดลง 0.60 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"3 ก.ค. 69 05:00 น.","summary":"ล่าสุด 29.00 บาท/ลิตร · ลดลงจากครั้งก่อน 0.60 จากครั้งก่อน · มีผล 3 ก.ค. 69 05:00 น.","points":[["2026-01-09",27.2],["2026-02-18",26.9],["2026-03-10",26.4],["2026-03-18",24.4],["2026-03-21",25.4],["2026-03-24",27.4],["2026-03-26",33.4],["2026-03-31",34.4],["2026-04-02",35.6],["2026-04-03",36.3],["2026-04-04",35.5],["2026-04-05",35.5],["2026-04-09",35.5],["2026-04-11",32.5],["2026-04-17",32.0],["2026-04-21",32.0],["2026-04-24",32.0],["2026-05-01",32.85],["2026-05-08",32.0],["2026-05-13",32.9],["2026-05-14",33.6],["2026-05-19",34.45],["2026-05-26",34.45],["2026-05-29",34.45],["2026-05-30",34.45],["2026-06-04",34.85],["2026-06-06",34.15],["2026-06-09",34.65],["2026-06-11",34.65],["2026-06-13",33.85],["2026-06-16",32.65],["2026-06-17",31.9],["2026-06-19",30.4],["2026-06-23",30.4],["2026-06-24",30.4],["2026-06-25",29.599999999999998],["2026-07-03",29.0]],"selected":false},{"name":"เบนซิน 95","price":47.54,"price_text":"47.54","delta":-0.7,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.70<\/span><span class=\"sr-only\">ลดลง 0.70 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"26 พ.ย. 69 05:00 น.","summary":"ล่าสุด 47.54 บาท/ลิตร · ลดลงจากครั้งก่อน 0.70 จากครั้งก่อน · มีผล 26 พ.ย. 69 05:00 น.","points":[["2026-01-09",39.75],["2026-02-18",39.75],["2026-03-10",40.25],["2026-03-18",41.25],["2026-03-21",42.25],["2026-03-24",44.25],["2026-03-26",50.25],["2026-03-31",51.25],["2026-04-02",52.45],["2026-04-03",53.15],["2026-04-04",53.15],["2026-04-05",53.15],["2026-04-09",53.15],["2026-04-11",53.15],["2026-04-17",52.65],["2026-04-21",52.65],["2026-04-24",52.65],["2026-05-01",53.5],["2026-05-08",52.65],["2026-05-13",53.55],["2026-05-14",54.25],["2026-05-19",55.1],["2026-05-26",54.5],["2026-05-29",53.8],["2026-05-30",53.1],["2026-06-04",53.5],["2026-06-06",52.8],["2026-06-09",53.3],["2026-06-11",53.3],["2026-06-13",52.5],["2026-06-16",51.3],["2026-06-17",50.55],["2026-06-19",49.05],["2026-06-23",49.05],["2026-06-24",49.05],["2026-06-25",48.25],["2026-07-03",47.05],["2026-07-08",44.54],["2026-07-22",45.39],["2026-07-23",46.29],["2026-08-06",45.589999999999996],["2026-08-12",46.44],["2026-08-19",47.29],["2026-09-02",47.89],["2026-09-09",48.69],["2026-09-15",49.54],["2026-09-24",49.54],["2026-10-02",50.29],["2026-10-09",51.04],["2026-10-21",51.64],["2026-10-28",51.64],["2026-10-29",51.64],["2026-11-05",50.94],["2026-11-06",49.94],["2026-11-11",49.44],["2026-11-18",48.94],["2026-11-19",48.24],["2026-11-20",48.24],["2026-11-25",48.24],["2026-11-26",47.54]],"selected":false},{"name":"SP GSH95","price":47.66,"price_text":"47.66","delta":-0.74,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.74<\/span><span class=\"sr-only\">ลดลง 0.74 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"29 ต.ค. 69 05:00 น.","summary":"ล่าสุด 47.66 บาท/ลิตร · ลดลงจากครั้งก่อน 0.74 จากครั้งก่อน · มีผล 29 ต.ค. 69 05:00 น.","points":[["2026-01-09",40.65],["2026-02-18",40.65],["2026-03-10",40.65],["2026-03-18",41.65],["2026-03-21",42.65],["2026-03-24",44.65],["2026-03-26",52.65],["2026-03-31",53.65],["2026-04-02",53.65],["2026-04-03",53.65],["2026-04-04",53.65],["2026-04-05",53.65],["2026-04-09",53.65],["2026-04-11",52.65],["2026-04-17",52.15],["2026-04-21",52.15],["2026-04-24",52.15],["2026-05-01",53.0],["2026-05-08",52.15],["2026-05-13",52.15],["2026-05-14",52.15],["2026-05-19",53.0],["2026-05-26",53.0],["2026-05-29",52.3],["2026-05-30",51.6],["2026-06-04",51.6],["2026-06-06",51.6],["2026-06-09",51.6],["2026-06-11",51.6],["2026-06-13",51.6],["2026-06-16",51.6],["2026-06-17",51.6],["2026-06-19",51.6],["2026-06-23",51.6],["2026-06-24",48.4],["2026-06-25",48.4],["2026-07-03",48.4],["2026-07-08",48.4],["2026-07-22",48.4],["2026-07-23",48.4],["2026-08-06",48.4],["2026-08-12",48.4],["2026-08-19",48.4],["2026-09-02",48.4],["2026-09-09",48.4],["2026-09-15",48.4],["2026-09-24",48.4],["2026-10-02",48.4],["2026-10-09",48.4],["2026-10-21",48.4],["2026-10-28",48.4],["2026-10-29",47.66],["2026-11-05",47.66],["2026-11-06",47.66],["2026-11-11",47.66],["2026-11-18",47.66],["2026-11-19",47.66],["2026-11-20",47.66],["2026-11-25",47.66],["2026-11-26",47.66]],"selected":false},{"name":"SP Diesel","price":49.66,"price_text":"49.66","delta":-1.0,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 1.00<\/span><span class=\"sr-only\">ลดลง 1.00 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"29 ต.ค. 69 05:00 น.","summary":"ล่าสุด 49.66 บาท/ลิตร · ลดลงจากครั้งก่อน 1.00 จากครั้งก่อน · มีผล 29 ต.ค. 69 05:00 น.","points":[["2026-01-09",44.05],["2026-02-18",44.05],["2026-03-10",44.05],["2026-03-18",44.55],["2026-03-21",45.25],["2026-03-24",47.25],["2026-03-26",55.25],["2026-03-31",57.05],["2026-04-02",60.55],["2026-04-03",64.55],["2026-04-04",64.55],["2026-04-05",71.05],["2026-04-09",68.91],["2026-04-11",66.91],["2026-04-17",65.41],["2026-04-21",64.21000000000001],["2026-04-24",62.71],["2026-05-01",62.71],["2026-05-08",61.86],["2026-05-13",61.86],["2026-05-14",61.86],["2026-05-19",61.86],["2026-05-26",60.86],["2026-05-29",59.86],["2026-05-30",58.86],["2026-06-04",58.86],["2026-06-06",57.86],["2026-06-09",57.86],["2026-06-11",56.86],["2026-06-13",55.86],["2026-06-16",54.86],["2026-06-17",54.86],["2026-06-19",54.86],["2026-06-23",54.86],["2026-06-24",50.66],["2026-06-25",50.66],["2026-07-03",50.66],["2026-07-08",50.66],["2026-07-22",50.66],["2026-07-23",50.66],["2026-08-06",50.66],["2026-08-12",50.66],["2026-08-19",50.66],["2026-09-02",50.66],["2026-09-09",50.66],["2026-09-15",50.66],["2026-09-24",50.66],["2026-10-02",50.66],["2026-10-09",50.66],["2026-10-21",50.66],["2026-10-28",50.66],["2026-10-29",49.66],["2026-11-05",49.66],["2026-11-06",49.66],["2026-11-11",49.66],["2026-11-18",49.66],["2026-11-19",49.66],["2026-11-20",49.66],["2026-11-25",49.66],["2026-11-26",49.66]],"selected":false},{"name":"SP X99","price":49.66,"price_text":"49.66","delta":-0.74,"chip_html":"<span class=\"chip down\"><span aria-hidden=\"true\">▼ 0.74<\/span><span class=\"sr-only\">ลดลง 0.74 บาท<\/span><\/span>","delta_word":"ลดลงจากครั้งก่อน","effective_label":"29 ต.ค. 69 05:00 น.","summary":"ล่าสุด 49.66 บาท/ลิตร · ลดลงจากครั้งก่อน 0.74 จากครั้งก่อน · มีผล 29 ต.ค. 69 05:00 น.","points":[["2026-06-04",0.61],["2026-06-06",0.61],["2026-06-09",0.61],["2026-06-11",0.61],["2026-06-13",0.61],["2026-06-16",0.61],["2026-06-17",0.61],["2026-06-19",0.61],["2026-06-23",51.6],["2026-06-24",50.4],["2026-06-25",50.4],["2026-07-03",50.4],["2026-07-08",50.4],["2026-07-22",50.4],["2026-07-23",50.4],["2026-08-06",50.4],["2026-08-12",50.4],["2026-08-19",50.4],["2026-09-02",50.4],["2026-09-09",50.4],["2026-09-15",50.4],["2026-09-24",50.4],["2026-10-02",50.4],["2026-10-09",50.4],["2026-10-21",50.4],["2026-10-28",50.4],["2026-10-29",49.66],["2026-11-05",49.66],["2026-11-06",49.66],["2026-11-11",49.66],["2026-11-18",49.66],["2026-11-19",49.66],["2026-11-20",49.66],["2026-11-25",49.66],["2026-11-26",49.66]],"selected":false}]}</script>
+<script>
+(function () {
+  "use strict";
+  var dataEl = document.getElementById("fuel-data");
+  if (!dataEl) return;
+  var products = [];
+  try { products = JSON.parse(dataEl.textContent).products || []; } catch (e) { return; }
+  if (!products.length) return;
+
+  var byName = {};
+  products.forEach(function (p) { byName[p.name] = p; });
+
+  var MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  var DAY = 86400000;
+  var NS = "http://www.w3.org/2000/svg";
+  var current = null;
+  for (var i = 0; i < products.length; i++) {
+    if (products[i].selected) { current = products[i]; break; }
+  }
+  current = current || products[0];
+  var days = 365;
+  var layout = null;
+
+  var svg = document.getElementById("price-chart");
+  var wrap = svg ? svg.parentNode : null;
+  var tip = document.getElementById("chart-tip");
+  var rangeNote = document.getElementById("chart-range-note");
+  var chartTitle = document.getElementById("chart-title");
+  var chartSub = document.getElementById("chart-sub");
+  var heroTitle = document.getElementById("hero-title");
+  var heroPrice = document.getElementById("hero-price-num");
+  var heroChip = document.getElementById("hero-chip");
+  var heroNote = document.getElementById("hero-note");
+  var heroSpark = document.getElementById("hero-spark");
+  var heroRange = document.getElementById("hero-range");
+
+  function parseDay(iso) {
+    var parts = iso.split("-");
+    return Date.UTC(+parts[0], +parts[1] - 1, +parts[2]);
+  }
+  function fmtDate(iso) {
+    var parts = iso.split("-");
+    var year = (+parts[0] + 543) % 100;
+    return (+parts[2]) + " " + MONTHS[+parts[1] - 1] + " " + year;
+  }
+  function fmtNum(value) {
+    return value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function daysLabel(value) {
+    return value >= 365 ? "1 ปี" : value + " วัน";
+  }
+  function node(tag, attrs, text) {
+    var el = document.createElementNS(NS, tag);
+    for (var key in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, key)) el.setAttribute(key, attrs[key]);
+    }
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function seriesFor(product, span) {
+    var pts = product.points || [];
+    if (!pts.length) return [];
+    var end = parseDay(pts[pts.length - 1][0]);
+    var start = end - (span - 1) * DAY;
+    var idx = pts.length - 1;
+    while (idx > 0 && parseDay(pts[idx - 1][0]) >= start) idx--;
+    idx = Math.max(0, idx - 1);
+    var out = [];
+    for (var i = idx; i < pts.length; i++) {
+      out.push({
+        t: Math.max(parseDay(pts[i][0]), start),
+        iso: pts[i][0],
+        v: pts[i][1]
+      });
+    }
+    return out;
+  }
+
+  function sparkSvg(values, height, width, strokeWidth) {
+    if (!values.length) return "";
+    height = height || 88;
+    width = width || 560;
+    strokeWidth = strokeWidth || 2;
+    var pad = 3;
+    var lo = Math.min.apply(null, values);
+    var hi = Math.max.apply(null, values);
+    var span = (hi - lo) || 1;
+    var points = values.map(function (value, index) {
+      var x = pad + (width - 2 * pad) * (values.length > 1 ? index / (values.length - 1) : 0.5);
+      var y = height - pad - (height - 2 * pad) * ((value - lo) / span);
+      return x.toFixed(1) + "," + y.toFixed(1);
+    });
+    var last = points[points.length - 1].split(",");
+    return '<svg class="spark" viewBox="0 0 ' + width + " " + height +
+      '" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<polyline points="' + points.join(" ") + '" fill="none" stroke="currentColor" ' +
+      'stroke-width="' + strokeWidth + '" vector-effect="non-scaling-stroke" ' +
+      'stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<circle class="spark-dot" cx="' + last[0] + '" cy="' + last[1] + '" r="2.6"/></svg>';
+  }
+
+  function renderChart() {
+    if (!svg || !wrap) return;
+    var product = current;
+    var pts = seriesFor(product, days);
+    var width = Math.max(300, wrap.clientWidth);
+    var height = Math.max(170, wrap.clientHeight);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    layout = null;
+    if (tip) tip.hidden = true;
+    if (pts.length < 2) return;
+
+    var m = { l: 46, r: 12, t: 14, b: 26 };
+    var xMin = pts[0].t;
+    var xMax = pts[pts.length - 1].t;
+    if (xMax <= xMin) xMax = xMin + DAY;
+    var lo = Infinity;
+    var hi = -Infinity;
+    pts.forEach(function (q) {
+      if (q.v < lo) lo = q.v;
+      if (q.v > hi) hi = q.v;
+    });
+    var padY = ((hi - lo) || 1) * 0.15;
+    var yMin = lo - padY;
+    var yMax = hi + padY;
+    function X(t) { return m.l + (width - m.l - m.r) * ((t - xMin) / (xMax - xMin)); }
+    function Y(v) { return m.t + (height - m.t - m.b) * (1 - (v - yMin) / (yMax - yMin)); }
+
+    for (var g = 0; g < 4; g++) {
+      var value = yMin + (yMax - yMin) * g / 3;
+      var gy = Y(value);
+      svg.appendChild(node("line", { "class": "chart-grid", x1: m.l, x2: width - m.r, y1: gy, y2: gy }));
+      svg.appendChild(node("text", { "class": "chart-axis", x: m.l - 8, y: gy + 3.5, "text-anchor": "end" }, fmtNum(value)));
+    }
+    for (var k = 0; k < 4; k++) {
+      var tick = xMin + (xMax - xMin) * k / 3;
+      svg.appendChild(node("text", {
+        "class": "chart-axis",
+        x: X(tick),
+        y: height - 8,
+        "text-anchor": k === 0 ? "start" : (k === 3 ? "end" : "middle")
+      }, fmtDate(new Date(tick).toISOString().slice(0, 10))));
+    }
+
+    var path = "";
+    pts.forEach(function (q, index) {
+      var x = X(q.t);
+      var y = Y(q.v);
+      path += index === 0 ? "M" + x + " " + y : "H" + x + "V" + y;
+    });
+    var last = pts[pts.length - 1];
+    if (X(last.t) < width - m.r) path += "H" + (width - m.r);
+    svg.appendChild(node("path", { "class": "chart-line", d: path }));
+    svg.appendChild(node("circle", { "class": "chart-dot", cx: X(last.t), cy: Y(last.v), r: 3.2 }));
+
+    var hair = node("line", { "class": "chart-hover-line", x1: 0, x2: 0, y1: m.t, y2: height - m.b, opacity: 0 });
+    var hoverDot = node("circle", { "class": "chart-hover-dot", cx: 0, cy: 0, r: 4.5, opacity: 0 });
+    var overlay = node("rect", {
+      x: m.l, y: m.t, width: width - m.l - m.r, height: height - m.t - m.b, fill: "transparent"
+    });
+    overlay.style.cursor = "crosshair";
+    svg.appendChild(hair);
+    svg.appendChild(hoverDot);
+    svg.appendChild(overlay);
+
+    layout = { width: width, height: height, X: X, Y: Y, pts: pts, hair: hair, dot: hoverDot };
+    svg.setAttribute("aria-label",
+      "กราฟราคา " + product.name + " ย้อนหลัง " + daysLabel(days) +
+      " ล่าสุด " + fmtNum(last.v) + " บาท ต่ำสุด " + fmtNum(lo) + " สูงสุด " + fmtNum(hi) + " บาท");
+
+    if (rangeNote) {
+      while (rangeNote.firstChild) rangeNote.removeChild(rangeNote.firstChild);
+      var diff = last.v - pts[0].v;
+      var percent = pts[0].v ? (diff / pts[0].v * 100) : 0;
+      [["ช่วง " + daysLabel(days), fmtNum(lo) + " – " + fmtNum(hi) + " บาท"],
+       ["เปลี่ยนแปลง", (diff > 0 ? "+" : "") + fmtNum(diff) + " บาท (" +
+         (diff > 0 ? "+" : "") + percent.toFixed(1) + "%)"]].forEach(function (pair) {
+        var span = document.createElement("span");
+        var strong = document.createElement("b");
+        strong.textContent = pair[1];
+        span.appendChild(document.createTextNode(pair[0] + " "));
+        span.appendChild(strong);
+        rangeNote.appendChild(span);
+      });
+    }
+  }
+
+  function renderHero() {
+    var product = current;
+    if (heroTitle) heroTitle.textContent = product.name;
+    if (heroPrice) heroPrice.textContent = product.price_text;
+    if (heroChip) heroChip.innerHTML = product.chip_html;
+    if (heroNote) heroNote.textContent = "มีผล " + product.effective_label + " · " + product.delta_word;
+    if (heroSpark) {
+      var values = seriesFor(product, 120).map(function (q) { return q.v; });
+      heroSpark.innerHTML = sparkSvg(values);
+      if (heroRange && values.length) {
+        heroRange.textContent = fmtNum(Math.min.apply(null, values)) + " – " + fmtNum(Math.max.apply(null, values));
+      }
+    }
+    if (chartTitle) chartTitle.textContent = "กราฟราคา · " + product.name;
+    if (chartSub) chartSub.textContent = product.summary;
+    renderChart();
+  }
+
+  function showPoint(clientX) {
+    if (!layout || !svg) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    var px = (clientX - rect.left) * (layout.width / rect.width);
+    var best = layout.pts[0];
+    var bestDistance = Infinity;
+    layout.pts.forEach(function (q) {
+      var distance = Math.abs(layout.X(q.t) - px);
+      if (distance < bestDistance) { bestDistance = distance; best = q; }
+    });
+    var x = layout.X(best.t);
+    var y = layout.Y(best.v);
+    layout.hair.setAttribute("x1", x);
+    layout.hair.setAttribute("x2", x);
+    layout.hair.setAttribute("opacity", 1);
+    layout.dot.setAttribute("cx", x);
+    layout.dot.setAttribute("cy", y);
+    layout.dot.setAttribute("opacity", 1);
+    if (tip) {
+      tip.hidden = false;
+      tip.textContent = fmtDate(best.iso) + " · " + fmtNum(best.v) + " บาท";
+      var left = x * rect.width / layout.width;
+      tip.style.left = Math.max(60, Math.min(rect.width - 60, left)) + "px";
+      tip.style.top = Math.max(34, y * rect.height / layout.height) + "px";
+    }
+  }
+
+  function hidePoint() {
+    if (!layout) return;
+    layout.hair.setAttribute("opacity", 0);
+    layout.dot.setAttribute("opacity", 0);
+    if (tip) tip.hidden = true;
+  }
+
+  if (svg) {
+    svg.addEventListener("pointermove", function (event) { showPoint(event.clientX); });
+    svg.addEventListener("pointerdown", function (event) { showPoint(event.clientX); });
+    svg.addEventListener("pointerleave", hidePoint);
+  }
+
+  var radios = document.querySelectorAll('input[name="product"]');
+  Array.prototype.forEach.call(radios, function (input) {
+    input.addEventListener("change", function () {
+      if (!input.checked) return;
+      current = byName[input.value] || current;
+      renderHero();
+    });
+  });
+
+  var rangeButtons = document.querySelectorAll(".range button");
+  Array.prototype.forEach.call(rangeButtons, function (button) {
+    button.addEventListener("click", function () {
+      days = parseInt(button.getAttribute("data-days"), 10) || 365;
+      Array.prototype.forEach.call(rangeButtons, function (other) {
+        other.setAttribute("aria-pressed", other === button ? "true" : "false");
+      });
+      renderChart();
+    });
+  });
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderChart, 150);
+  });
+
+  renderHero();
+})();
+</script>
 </body>
 </html>

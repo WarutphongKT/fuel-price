@@ -12,6 +12,7 @@
 """
 
 import html
+import json
 from datetime import date, timedelta
 
 from common import (
@@ -196,6 +197,52 @@ h1 .place{color:var(--muted);font-weight:500}
 .panel-head h2{margin:0;font-size:1rem;font-weight:600}
 .hint{margin:0;font-size:12px;color:var(--muted)}
 
+.picker{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:14px 18px 16px;margin-bottom:18px;
+}
+.picker-head{display:flex;flex-wrap:wrap;gap:2px 12px;align-items:baseline;justify-content:space-between}
+.picker h2{margin:0;font-size:.95rem;font-weight:600}
+.picks{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.pick{position:relative;display:inline-flex}
+.pick input{position:absolute;width:1px;height:1px;margin:0;opacity:0}
+.pick span{
+  display:inline-flex;align-items:center;min-height:34px;padding:5px 13px;
+  border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);
+  font-size:13px;font-weight:500;line-height:1.4;cursor:pointer;
+  transition:background .12s ease,border-color .12s ease,color .12s ease;
+}
+.pick span:hover{border-color:var(--ink)}
+.pick input:checked + span{background:var(--ink);border-color:var(--ink);color:var(--paper);font-weight:600}
+.pick input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
+
+.chart-panel .panel-head{align-items:flex-start}
+.range{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--line-strong);border-radius:999px}
+.range button{
+  appearance:none;border:0;background:none;color:var(--muted);font:inherit;font-size:12.5px;
+  line-height:1.4;padding:4px 11px;border-radius:999px;cursor:pointer;min-height:28px;
+}
+.range button:hover{color:var(--ink)}
+.range button[aria-pressed="true"]{background:var(--ink);color:var(--paper);font-weight:600}
+.chart-wrap{position:relative;height:280px;margin-top:8px}
+@media (max-width:640px){.chart-wrap{height:220px}}
+#price-chart{display:block;width:100%;height:100%;touch-action:pan-y}
+.chart-grid{stroke:var(--line);stroke-width:1}
+.chart-axis{fill:var(--muted);font-size:10.5px}
+.chart-line{fill:none;stroke:var(--ink);stroke-width:2;stroke-linejoin:round;stroke-linecap:round}
+.chart-dot{fill:var(--ink);stroke:var(--surface);stroke-width:1.5}
+.chart-hover-line{stroke:var(--line-strong);stroke-width:1;stroke-dasharray:3 3}
+.chart-hover-dot{fill:var(--accent);stroke:var(--surface);stroke-width:1.5}
+.chart-tip{
+  position:absolute;z-index:2;pointer-events:none;background:var(--ink);color:var(--paper);
+  border-radius:var(--r-chip);padding:5px 9px;font-size:12px;font-weight:500;white-space:nowrap;
+  transform:translate(-50%,-130%);
+}
+.chart-range-note{display:flex;flex-wrap:wrap;gap:2px 14px;margin:8px 0 0;font-size:12px;color:var(--muted)}
+.chart-range-note b{color:var(--ink);font-weight:600}
+.js-only{display:none}
+.js .js-only{display:block}
+
 table.prices,table.recent{width:100%;border-collapse:collapse;font-size:13.5px}
 table.prices th,table.recent th{
   text-align:left;font-size:11.5px;font-weight:600;color:var(--muted);
@@ -291,7 +338,7 @@ footer{
 }
 footer p{margin:0 0 4px}
 @media print{
-  .skip,.pills{display:none}
+  .skip,.pills,.picker,.range{display:none}
   body{background:#fff;color:#000}
   .card,.panel{border-color:#ccc}
 }
@@ -407,19 +454,19 @@ def render_hero(ctx):
     return f"""
 <section class="hero" aria-label="ราคาหลักและประกาศพรุ่งนี้">
   <div class="card hero-main">
-    <p class="eyebrow">ราคาอ้างอิงหลัก</p>
+    <p class="eyebrow">ราคาน้ำมัน</p>
     <div class="hero-head">
       <h2 id="hero-title">{html.escape(reference['product'])}</h2>
-      {chip(reference['delta'])}
+      <span id="hero-chip">{chip(reference['delta'])}</span>
     </div>
     <p class="hero-price">
-      <span class="num">{fmt_price(reference['price'])}</span>
+      <span class="num" id="hero-price-num">{fmt_price(reference['price'])}</span>
       <span class="unit">บาท/ลิตร</span>
     </p>
-    <p class="hero-note">มีผล {effective} · {delta_word(reference['delta'])}</p>
+    <p class="hero-note" id="hero-note">มีผล {effective} · {delta_word(reference['delta'])}</p>
     <div class="hero-chart">
-      <div class="cap"><span>แนวโน้ม 120 วัน</span><span>{low:,.2f} – {high:,.2f}</span></div>
-      {sparkline(values)}
+      <div class="cap"><span>แนวโน้ม 120 วัน</span><span id="hero-range">{low:,.2f} – {high:,.2f}</span></div>
+      <div id="hero-spark">{sparkline(values)}</div>
     </div>
   </div>
   <aside class="card tomorrow" aria-labelledby="tomorrow-title">
@@ -430,6 +477,371 @@ def render_hero(ctx):
     <p class="more"><a href="#news">ดูข่าวประกาศล่าสุด</a></p>
   </aside>
 </section>
+"""
+
+
+def _product_payload(ctx):
+    """ข้อมูลรายผลิตภัณฑ์สำหรับให้ JS สลับการ์ดและวาดกราฟ"""
+    rows = []
+    for card in ctx["cards"]:
+        delta = card["delta"]
+        effective = f"{thai_date(card['delta_at'], short=True)} {card['delta_at']:%H:%M} น."
+        summary = f"ล่าสุด {fmt_price(card['price'])} บาท/ลิตร · {delta_word(delta)}"
+        if delta is not None and abs(delta) >= 0.005:
+            summary += f" {abs(delta):.2f} จากครั้งก่อน"
+        summary += f" · มีผล {effective}"
+        rows.append(
+            {
+                "name": card["product"],
+                "price": card["price"],
+                "price_text": fmt_price(card["price"]),
+                "delta": delta or 0,
+                "chip_html": chip(delta),
+                "delta_word": delta_word(delta),
+                "effective_label": effective,
+                "summary": summary,
+                "points": ctx.get("series", {}).get(card["product"], []),
+                "selected": card["product"] == ctx["reference"],
+            }
+        )
+    return rows
+
+
+def render_picker(ctx):
+    """ตัวเลือกประเภทน้ำมัน (ใช้ radio จริงเพื่อให้คีย์บอร์ดและ screen reader ใช้ได้)"""
+    inputs = "".join(
+        f'<label class="pick"><input type="radio" name="product" value="{html.escape(card["product"])}"'
+        f'{" checked" if card["product"] == ctx["reference"] else ""}>'
+        f'<span>{html.escape(card["product"])}</span></label>'
+        for card in ctx["cards"]
+    )
+    return f"""
+<section class="picker js-only" aria-labelledby="picker-title">
+  <div class="picker-head">
+    <h2 id="picker-title">เลือกประเภทน้ำมัน</h2>
+    <p class="hint">เลือกแล้วราคาและกราฟด้านล่างจะเปลี่ยนตาม</p>
+  </div>
+  <div class="picks" role="radiogroup" aria-label="ประเภทน้ำมันที่ต้องการดู">
+    {inputs}
+  </div>
+</section>
+"""
+
+
+def render_chart(ctx):
+    """โครงกราฟราคา (JS เป็นคนวาดเส้นจริง เพื่อให้สลับประเภท/ช่วงเวลาได้)"""
+    reference = next(
+        (card for card in ctx["cards"] if card["product"] == ctx["reference"]),
+        ctx["cards"][0],
+    )
+    return f"""
+<section class="panel chart-panel js-only" aria-labelledby="chart-title">
+  <div class="panel-head">
+    <div>
+      <h2 id="chart-title">กราฟราคา · {html.escape(reference['product'])}</h2>
+      <p class="hint" id="chart-sub">ล่าสุด {fmt_price(reference['price'])} บาท/ลิตร</p>
+    </div>
+    <div class="range" role="group" aria-label="ช่วงเวลาของกราฟ">
+      <button type="button" data-days="30" aria-pressed="false">30 วัน</button>
+      <button type="button" data-days="90" aria-pressed="false">90 วัน</button>
+      <button type="button" data-days="365" aria-pressed="true">1 ปี</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <svg id="price-chart" role="img" aria-label="กราฟราคา {html.escape(reference['product'])} ย้อนหลัง 1 ปี"></svg>
+    <div id="chart-tip" class="chart-tip" hidden></div>
+  </div>
+  <p class="chart-range-note" id="chart-range-note"></p>
+</section>
+"""
+
+
+def render_data(ctx):
+    """ฝังข้อมูลราคาทุกประเภทเป็น JSON ให้สคริปต์ในหน้าเดียวกันอ่าน"""
+    blob = json.dumps(
+        {"products": _product_payload(ctx)},
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).replace("</", "<\\/")
+    return f'<script type="application/json" id="fuel-data">{blob}</script>'
+
+
+CHART_JS = """
+(function () {
+  "use strict";
+  var dataEl = document.getElementById("fuel-data");
+  if (!dataEl) return;
+  var products = [];
+  try { products = JSON.parse(dataEl.textContent).products || []; } catch (e) { return; }
+  if (!products.length) return;
+
+  var byName = {};
+  products.forEach(function (p) { byName[p.name] = p; });
+
+  var MONTHS = ["ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.", "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค."];
+  var DAY = 86400000;
+  var NS = "http://www.w3.org/2000/svg";
+  var current = null;
+  for (var i = 0; i < products.length; i++) {
+    if (products[i].selected) { current = products[i]; break; }
+  }
+  current = current || products[0];
+  var days = 365;
+  var layout = null;
+
+  var svg = document.getElementById("price-chart");
+  var wrap = svg ? svg.parentNode : null;
+  var tip = document.getElementById("chart-tip");
+  var rangeNote = document.getElementById("chart-range-note");
+  var chartTitle = document.getElementById("chart-title");
+  var chartSub = document.getElementById("chart-sub");
+  var heroTitle = document.getElementById("hero-title");
+  var heroPrice = document.getElementById("hero-price-num");
+  var heroChip = document.getElementById("hero-chip");
+  var heroNote = document.getElementById("hero-note");
+  var heroSpark = document.getElementById("hero-spark");
+  var heroRange = document.getElementById("hero-range");
+
+  function parseDay(iso) {
+    var parts = iso.split("-");
+    return Date.UTC(+parts[0], +parts[1] - 1, +parts[2]);
+  }
+  function fmtDate(iso) {
+    var parts = iso.split("-");
+    var year = (+parts[0] + 543) % 100;
+    return (+parts[2]) + " " + MONTHS[+parts[1] - 1] + " " + year;
+  }
+  function fmtNum(value) {
+    return value.toLocaleString("th-TH", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+  function daysLabel(value) {
+    return value >= 365 ? "1 ปี" : value + " วัน";
+  }
+  function node(tag, attrs, text) {
+    var el = document.createElementNS(NS, tag);
+    for (var key in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, key)) el.setAttribute(key, attrs[key]);
+    }
+    if (text != null) el.textContent = text;
+    return el;
+  }
+
+  function seriesFor(product, span) {
+    var pts = product.points || [];
+    if (!pts.length) return [];
+    var end = parseDay(pts[pts.length - 1][0]);
+    var start = end - (span - 1) * DAY;
+    var idx = pts.length - 1;
+    while (idx > 0 && parseDay(pts[idx - 1][0]) >= start) idx--;
+    idx = Math.max(0, idx - 1);
+    var out = [];
+    for (var i = idx; i < pts.length; i++) {
+      out.push({
+        t: Math.max(parseDay(pts[i][0]), start),
+        iso: pts[i][0],
+        v: pts[i][1]
+      });
+    }
+    return out;
+  }
+
+  function sparkSvg(values, height, width, strokeWidth) {
+    if (!values.length) return "";
+    height = height || 88;
+    width = width || 560;
+    strokeWidth = strokeWidth || 2;
+    var pad = 3;
+    var lo = Math.min.apply(null, values);
+    var hi = Math.max.apply(null, values);
+    var span = (hi - lo) || 1;
+    var points = values.map(function (value, index) {
+      var x = pad + (width - 2 * pad) * (values.length > 1 ? index / (values.length - 1) : 0.5);
+      var y = height - pad - (height - 2 * pad) * ((value - lo) / span);
+      return x.toFixed(1) + "," + y.toFixed(1);
+    });
+    var last = points[points.length - 1].split(",");
+    return '<svg class="spark" viewBox="0 0 ' + width + " " + height +
+      '" preserveAspectRatio="none" aria-hidden="true" focusable="false">' +
+      '<polyline points="' + points.join(" ") + '" fill="none" stroke="currentColor" ' +
+      'stroke-width="' + strokeWidth + '" vector-effect="non-scaling-stroke" ' +
+      'stroke-linejoin="round" stroke-linecap="round"/>' +
+      '<circle class="spark-dot" cx="' + last[0] + '" cy="' + last[1] + '" r="2.6"/></svg>';
+  }
+
+  function renderChart() {
+    if (!svg || !wrap) return;
+    var product = current;
+    var pts = seriesFor(product, days);
+    var width = Math.max(300, wrap.clientWidth);
+    var height = Math.max(170, wrap.clientHeight);
+    svg.setAttribute("viewBox", "0 0 " + width + " " + height);
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    layout = null;
+    if (tip) tip.hidden = true;
+    if (pts.length < 2) return;
+
+    var m = { l: 46, r: 12, t: 14, b: 26 };
+    var xMin = pts[0].t;
+    var xMax = pts[pts.length - 1].t;
+    if (xMax <= xMin) xMax = xMin + DAY;
+    var lo = Infinity;
+    var hi = -Infinity;
+    pts.forEach(function (q) {
+      if (q.v < lo) lo = q.v;
+      if (q.v > hi) hi = q.v;
+    });
+    var padY = ((hi - lo) || 1) * 0.15;
+    var yMin = lo - padY;
+    var yMax = hi + padY;
+    function X(t) { return m.l + (width - m.l - m.r) * ((t - xMin) / (xMax - xMin)); }
+    function Y(v) { return m.t + (height - m.t - m.b) * (1 - (v - yMin) / (yMax - yMin)); }
+
+    for (var g = 0; g < 4; g++) {
+      var value = yMin + (yMax - yMin) * g / 3;
+      var gy = Y(value);
+      svg.appendChild(node("line", { "class": "chart-grid", x1: m.l, x2: width - m.r, y1: gy, y2: gy }));
+      svg.appendChild(node("text", { "class": "chart-axis", x: m.l - 8, y: gy + 3.5, "text-anchor": "end" }, fmtNum(value)));
+    }
+    for (var k = 0; k < 4; k++) {
+      var tick = xMin + (xMax - xMin) * k / 3;
+      svg.appendChild(node("text", {
+        "class": "chart-axis",
+        x: X(tick),
+        y: height - 8,
+        "text-anchor": k === 0 ? "start" : (k === 3 ? "end" : "middle")
+      }, fmtDate(new Date(tick).toISOString().slice(0, 10))));
+    }
+
+    var path = "";
+    pts.forEach(function (q, index) {
+      var x = X(q.t);
+      var y = Y(q.v);
+      path += index === 0 ? "M" + x + " " + y : "H" + x + "V" + y;
+    });
+    var last = pts[pts.length - 1];
+    if (X(last.t) < width - m.r) path += "H" + (width - m.r);
+    svg.appendChild(node("path", { "class": "chart-line", d: path }));
+    svg.appendChild(node("circle", { "class": "chart-dot", cx: X(last.t), cy: Y(last.v), r: 3.2 }));
+
+    var hair = node("line", { "class": "chart-hover-line", x1: 0, x2: 0, y1: m.t, y2: height - m.b, opacity: 0 });
+    var hoverDot = node("circle", { "class": "chart-hover-dot", cx: 0, cy: 0, r: 4.5, opacity: 0 });
+    var overlay = node("rect", {
+      x: m.l, y: m.t, width: width - m.l - m.r, height: height - m.t - m.b, fill: "transparent"
+    });
+    overlay.style.cursor = "crosshair";
+    svg.appendChild(hair);
+    svg.appendChild(hoverDot);
+    svg.appendChild(overlay);
+
+    layout = { width: width, height: height, X: X, Y: Y, pts: pts, hair: hair, dot: hoverDot };
+    svg.setAttribute("aria-label",
+      "กราฟราคา " + product.name + " ย้อนหลัง " + daysLabel(days) +
+      " ล่าสุด " + fmtNum(last.v) + " บาท ต่ำสุด " + fmtNum(lo) + " สูงสุด " + fmtNum(hi) + " บาท");
+
+    if (rangeNote) {
+      while (rangeNote.firstChild) rangeNote.removeChild(rangeNote.firstChild);
+      var diff = last.v - pts[0].v;
+      var percent = pts[0].v ? (diff / pts[0].v * 100) : 0;
+      [["ช่วง " + daysLabel(days), fmtNum(lo) + " – " + fmtNum(hi) + " บาท"],
+       ["เปลี่ยนแปลง", (diff > 0 ? "+" : "") + fmtNum(diff) + " บาท (" +
+         (diff > 0 ? "+" : "") + percent.toFixed(1) + "%)"]].forEach(function (pair) {
+        var span = document.createElement("span");
+        var strong = document.createElement("b");
+        strong.textContent = pair[1];
+        span.appendChild(document.createTextNode(pair[0] + " "));
+        span.appendChild(strong);
+        rangeNote.appendChild(span);
+      });
+    }
+  }
+
+  function renderHero() {
+    var product = current;
+    if (heroTitle) heroTitle.textContent = product.name;
+    if (heroPrice) heroPrice.textContent = product.price_text;
+    if (heroChip) heroChip.innerHTML = product.chip_html;
+    if (heroNote) heroNote.textContent = "มีผล " + product.effective_label + " · " + product.delta_word;
+    if (heroSpark) {
+      var values = seriesFor(product, 120).map(function (q) { return q.v; });
+      heroSpark.innerHTML = sparkSvg(values);
+      if (heroRange && values.length) {
+        heroRange.textContent = fmtNum(Math.min.apply(null, values)) + " – " + fmtNum(Math.max.apply(null, values));
+      }
+    }
+    if (chartTitle) chartTitle.textContent = "กราฟราคา · " + product.name;
+    if (chartSub) chartSub.textContent = product.summary;
+    renderChart();
+  }
+
+  function showPoint(clientX) {
+    if (!layout || !svg) return;
+    var rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    var px = (clientX - rect.left) * (layout.width / rect.width);
+    var best = layout.pts[0];
+    var bestDistance = Infinity;
+    layout.pts.forEach(function (q) {
+      var distance = Math.abs(layout.X(q.t) - px);
+      if (distance < bestDistance) { bestDistance = distance; best = q; }
+    });
+    var x = layout.X(best.t);
+    var y = layout.Y(best.v);
+    layout.hair.setAttribute("x1", x);
+    layout.hair.setAttribute("x2", x);
+    layout.hair.setAttribute("opacity", 1);
+    layout.dot.setAttribute("cx", x);
+    layout.dot.setAttribute("cy", y);
+    layout.dot.setAttribute("opacity", 1);
+    if (tip) {
+      tip.hidden = false;
+      tip.textContent = fmtDate(best.iso) + " · " + fmtNum(best.v) + " บาท";
+      var left = x * rect.width / layout.width;
+      tip.style.left = Math.max(60, Math.min(rect.width - 60, left)) + "px";
+      tip.style.top = Math.max(34, y * rect.height / layout.height) + "px";
+    }
+  }
+
+  function hidePoint() {
+    if (!layout) return;
+    layout.hair.setAttribute("opacity", 0);
+    layout.dot.setAttribute("opacity", 0);
+    if (tip) tip.hidden = true;
+  }
+
+  if (svg) {
+    svg.addEventListener("pointermove", function (event) { showPoint(event.clientX); });
+    svg.addEventListener("pointerdown", function (event) { showPoint(event.clientX); });
+    svg.addEventListener("pointerleave", hidePoint);
+  }
+
+  var radios = document.querySelectorAll('input[name="product"]');
+  Array.prototype.forEach.call(radios, function (input) {
+    input.addEventListener("change", function () {
+      if (!input.checked) return;
+      current = byName[input.value] || current;
+      renderHero();
+    });
+  });
+
+  var rangeButtons = document.querySelectorAll(".range button");
+  Array.prototype.forEach.call(rangeButtons, function (button) {
+    button.addEventListener("click", function () {
+      days = parseInt(button.getAttribute("data-days"), 10) || 365;
+      Array.prototype.forEach.call(rangeButtons, function (other) {
+        other.setAttribute("aria-pressed", other === button ? "true" : "false");
+      });
+      renderChart();
+    });
+  });
+
+  var resizeTimer = null;
+  window.addEventListener("resize", function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderChart, 150);
+  });
+
+  renderHero();
+})();
 """
 
 
@@ -703,6 +1115,7 @@ def render_html(ctx):
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap">
 <style>{CSS}</style>
+<script>document.documentElement.classList.add("js");</script>
 </head>
 <body>
 <a class="skip" href="#main">ข้ามไปที่เนื้อหา</a>
@@ -722,7 +1135,9 @@ def render_html(ctx):
   <main id="main">
     {render_stale(ctx)}
     {render_advice(ctx)}
+    {render_picker(ctx)}
     {render_hero(ctx)}
+    {render_chart(ctx)}
     {render_prices(ctx)}
     <div class="duo">
       {render_calendar(ctx)}
@@ -742,6 +1157,8 @@ def render_html(ctx):
     <p>สร้างอัตโนมัติเมื่อ {ctx['now']:%d/%m/%Y %H:%M} น. · ตัวเลขทั้งหมดเป็นข้อมูลจริงจากฐานข้อมูล ไม่ใช่ตัวอย่าง</p>
   </footer>
 </div>
+{render_data(ctx)}
+<script>{CHART_JS}</script>
 </body>
 </html>
 """

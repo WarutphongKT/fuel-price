@@ -284,6 +284,12 @@ def build_context(conn, config):
         tomorrow_events, news, now, pressure_class, pressure_label, brent, tomorrow
     )
 
+    # ข้อมูลสำหรับกราฟเลือกดูรายประเภท (ส่งให้ JS วาดกราฟ)
+    series = {
+        product: [[dt.date().isoformat(), value] for dt, value in sorted(history)]
+        for product, history in timeline.items()
+    }
+
     return {
         "config": config,
         "province": province,
@@ -308,6 +314,7 @@ def build_context(conn, config):
         "pressure_label": pressure_label,
         "news": news,
         "advice": advice,
+        "series": series,
     }
 
 
